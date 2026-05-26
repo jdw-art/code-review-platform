@@ -43,6 +43,26 @@ Phase 1 excludes:
 - Password hashing: Argon2id
 - Logging: Python `logging`
 
+## Development Infrastructure Defaults
+
+Phase 1 should assume the following local development defaults unless overridden by environment variables:
+
+### PostgreSQL
+
+- Host: `localhost`
+- Port: `5432`
+- Database: `langchain_app`
+- Username: `postgres`
+- Password: `postgres`
+
+### Redis
+
+- Host: `localhost`
+- Port: `6379`
+- DB index: `0`
+
+Redis is already installed in the environment. The provided Docker Compose setup is the default local reference for both PostgreSQL and Redis, and the backend configuration should be compatible with it.
+
 ## Architectural Boundaries
 
 The backend should be organized into clear modules with stable boundaries:
@@ -96,11 +116,24 @@ Operational behavior:
 
 ## Data Model
 
+### Identifier Strategy
+
+All database tables in Phase 1 must use integer-based identifiers only.
+
+Rules:
+
+- Every table primary key `id` must use `BIGINT`
+- Every foreign key that references those primary keys must also use `BIGINT`
+- Do not use UUID primary keys in Phase 1
+- Do not mix `INTEGER` and `BIGINT` across related tables
+
+In Python and SQLAlchemy code, these IDs can be represented as standard Python `int` values, while the database column type remains `BIGINT`.
+
 ### `users`
 
 Core fields:
 
-- `id`
+- `id` (`BIGINT` primary key)
 - `username` (unique, required)
 - `password_hash` (required)
 - `nickname`
@@ -124,7 +157,7 @@ Constraints:
 
 Core fields:
 
-- `id`
+- `id` (`BIGINT` primary key)
 - `name`
 - `code` (unique)
 - `description`
@@ -142,7 +175,7 @@ Constraints:
 
 Core fields:
 
-- `id`
+- `id` (`BIGINT` primary key)
 - `name`
 - `code` (unique)
 - `resource`
@@ -163,8 +196,8 @@ Permission code format should follow `resource:action`, for example:
 
 Core fields:
 
-- `id`
-- `parent_id` (nullable)
+- `id` (`BIGINT` primary key)
+- `parent_id` (`BIGINT`, nullable)
 - `name`
 - `path`
 - `component`
@@ -189,18 +222,18 @@ Constraints:
 
 `user_roles`
 
-- `user_id`
-- `role_id`
+- `user_id` (`BIGINT`)
+- `role_id` (`BIGINT`)
 
 `role_permissions`
 
-- `role_id`
-- `permission_id`
+- `role_id` (`BIGINT`)
+- `permission_id` (`BIGINT`)
 
 `role_menus`
 
-- `role_id`
-- `menu_id`
+- `role_id` (`BIGINT`)
+- `menu_id` (`BIGINT`)
 
 Constraints:
 
@@ -210,8 +243,8 @@ Constraints:
 
 Core fields:
 
-- `id`
-- `user_id`
+- `id` (`BIGINT` primary key)
+- `user_id` (`BIGINT`)
 - `jti` (unique)
 - `refresh_token_hash`
 - `issued_at`
