@@ -142,6 +142,12 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.UniqueConstraint("jti", name="uq_refresh_sessions_jti"),
     )
+    op.create_index(
+        "ix_refresh_sessions_user_id",
+        "refresh_sessions",
+        ["user_id"],
+        unique=False,
+    )
     op.create_table(
         "user_roles",
         sa.Column("user_id", sa.BigInteger(), nullable=False),
@@ -149,7 +155,6 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["role_id"], ["roles.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("user_id", "role_id", name="pk_user_roles"),
-        sa.UniqueConstraint("user_id", "role_id", name="uq_user_roles_user_id_role_id"),
     )
     op.create_table(
         "role_permissions",
@@ -158,11 +163,6 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["role_id"], ["roles.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["permission_id"], ["permissions.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("role_id", "permission_id", name="pk_role_permissions"),
-        sa.UniqueConstraint(
-            "role_id",
-            "permission_id",
-            name="uq_role_permissions_role_id_permission_id",
-        ),
     )
     op.create_table(
         "role_menus",
@@ -171,11 +171,11 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["role_id"], ["roles.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["menu_id"], ["menus.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("role_id", "menu_id", name="pk_role_menus"),
-        sa.UniqueConstraint("role_id", "menu_id", name="uq_role_menus_role_id_menu_id"),
     )
 
 
 def downgrade() -> None:
+    op.drop_index("ix_refresh_sessions_user_id", table_name="refresh_sessions")
     op.drop_table("role_menus")
     op.drop_table("role_permissions")
     op.drop_table("user_roles")

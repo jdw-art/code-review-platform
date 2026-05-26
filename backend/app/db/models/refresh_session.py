@@ -14,6 +14,7 @@ class RefreshSession(BigIntPrimaryKeyMixin, TimestampMixin, Base):
     user_id: Mapped[int] = mapped_column(
         BigInteger,
         ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
         nullable=False,
     )
     jti: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
