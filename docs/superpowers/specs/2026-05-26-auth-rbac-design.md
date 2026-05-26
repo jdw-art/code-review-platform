@@ -51,9 +51,11 @@ Phase 1 should assume the following local development defaults unless overridden
 
 - Host: `localhost`
 - Port: `5432`
-- Database: `langchain_app`
+- Database: `ai_code_reviewer`
 - Username: `postgres`
 - Password: `postgres`
+
+The backend should assume this database must be created explicitly for this project rather than reusing `langchain_app` or any unrelated existing database.
 
 ### Redis
 
