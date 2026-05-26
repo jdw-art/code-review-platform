@@ -11,11 +11,11 @@ FastAPI backend scaffold for the Phase 1 auth and RBAC service.
 ## Run
 
 ```bash
-uvicorn app.main:app --reload
+cd backend && uvicorn app.main:app --reload
 ```
 
 ## Tests
 
 ```bash
-pytest
+cd backend && pytest
 ```

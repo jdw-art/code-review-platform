@@ -1,8 +1,16 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="AI_CODE_REVIEWER_")
+    model_config = SettingsConfigDict(
+        env_file=BACKEND_DIR / ".env",
+        env_prefix="AI_CODE_REVIEWER_",
+    )
 
     app_name: str = "AI Code Reviewer"
     api_prefix: str = "/api/v1"
