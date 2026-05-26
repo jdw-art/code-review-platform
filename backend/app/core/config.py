@@ -27,3 +27,9 @@ class Settings(BaseSettings):
     refresh_token_ttl_days: int = 7
     bootstrap_admin_username: str = "admin"
     bootstrap_admin_password: str = "jdw112233"
+
+    def uses_insecure_auth_defaults(self) -> bool:
+        return (
+            self.jwt_secret_key == "change-me-in-env"
+            or self.bootstrap_admin_password == "jdw112233"
+        )
