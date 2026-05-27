@@ -45,7 +45,7 @@ def test_record_action_persists_sanitized_audit_log(db_session) -> None:
     context = AuditActionContext(
         user_id=user.id,
         username=user.username,
-        action="change-password",
+        action="auth.change_password",
         resource_type="auth",
         resource_id=user.id,
         resource_name="audit-admin",
@@ -99,7 +99,7 @@ def test_build_context_from_request_uses_client_and_current_user(db_session) -> 
     context = AuditLogService.build_context(
         request=request,
         current_user=user,
-        action="status",
+        action="user.status",
         resource_type="user",
         resource_id=1,
         resource_name="request-user",

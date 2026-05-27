@@ -12,7 +12,7 @@ def test_llm_models_api_supports_crud_status_and_encrypts_api_key(
     db_session,
 ) -> None:
     create_response = authenticated_superuser_client.post(
-        "/api/v1/llm-models",
+        "/api/v1/models",
         json={
             "name": "OpenAI GPT 4.1",
             "provider": "openai",
@@ -43,18 +43,18 @@ def test_llm_models_api_supports_crud_status_and_encrypts_api_key(
     cipher = SecretCipher(Settings().secret_encryption_key)
     assert cipher.decrypt_text(str(stored_model.api_key_encrypted)) == "sk-live-secret-key"
 
-    list_response = authenticated_superuser_client.get("/api/v1/llm-models")
+    list_response = authenticated_superuser_client.get("/api/v1/models")
     assert list_response.status_code == 200
     assert any(item["id"] == created["id"] for item in list_response.json()["items"])
 
     detail_response = authenticated_superuser_client.get(
-        f"/api/v1/llm-models/{created['id']}"
+        f"/api/v1/models/{created['id']}"
     )
     assert detail_response.status_code == 200
     assert detail_response.json()["api_key_masked"] == "sk-l**********-key"
 
     update_response = authenticated_superuser_client.put(
-        f"/api/v1/llm-models/{created['id']}",
+        f"/api/v1/models/{created['id']}",
         json={
             "name": "OpenAI GPT 4.1 Updated",
             "provider": "openai",
@@ -73,7 +73,7 @@ def test_llm_models_api_supports_crud_status_and_encrypts_api_key(
     assert update_response.json()["api_key_masked"] == "sk-r**********-key"
 
     status_response = authenticated_superuser_client.patch(
-        f"/api/v1/llm-models/{created['id']}/status",
+        f"/api/v1/models/{created['id']}/status",
         json={"is_active": False},
     )
     assert status_response.status_code == 200
@@ -84,7 +84,7 @@ def test_llm_models_api_supports_crud_status_and_encrypts_api_key(
         .where(
             AuditLog.resource_type == "llm_model",
             AuditLog.resource_id == created["id"],
-            AuditLog.action == "create",
+            AuditLog.action == "llm_model.create",
         )
         .order_by(AuditLog.id.desc())
     )
@@ -96,7 +96,7 @@ def test_llm_models_api_allows_only_one_default(
     authenticated_superuser_client,
 ) -> None:
     first_response = authenticated_superuser_client.post(
-        "/api/v1/llm-models",
+        "/api/v1/models",
         json={
             "name": "Default Model",
             "provider": "openai",
@@ -108,7 +108,7 @@ def test_llm_models_api_allows_only_one_default(
     assert first_response.status_code == 201
 
     second_response = authenticated_superuser_client.post(
-        "/api/v1/llm-models",
+        "/api/v1/models",
         json={
             "name": "Second Default Model",
             "provider": "openai",

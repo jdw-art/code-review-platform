@@ -22,8 +22,8 @@ router = APIRouter(prefix="/notification-bots", tags=["notification-bots"])
     "",
     response_model=PageResponse[NotificationBotResponse],
     dependencies=[Depends(require_permission("notification_bot:read"))],
-    summary="获取通知机器人列表",
-    description="分页返回通知机器人配置列表，响应中仅包含 Secret 掩码，不返回明文密钥。需要 `notification_bot:read` 权限。",
+    summary="获取机器人列表",
+    description="分页返回通知机器人列表，敏感 Secret 仅以掩码形式展示。需要 `notification_bot:read` 权限。",
 )
 async def list_notification_bots(
     query: PageQuery = Depends(),
@@ -37,8 +37,8 @@ async def list_notification_bots(
     "/{bot_id}",
     response_model=NotificationBotResponse,
     dependencies=[Depends(require_permission("notification_bot:read"))],
-    summary="获取通知机器人详情",
-    description="根据通知机器人 ID 返回详情，敏感 Secret 仅返回掩码。需要 `notification_bot:read` 权限。",
+    summary="获取机器人详情",
+    description="根据机器人 ID 返回单个通知机器人详情，敏感 Secret 不会明文返回。需要 `notification_bot:read` 权限。",
 )
 async def get_notification_bot(
     bot_id: int,
@@ -53,7 +53,7 @@ async def get_notification_bot(
     response_model=NotificationBotResponse,
     status_code=status.HTTP_201_CREATED,
     summary="创建通知机器人",
-    description="创建新的通知机器人，并使用服务端密钥加密保存 Secret。需要 `notification_bot:create` 权限。",
+    description="创建新的通知机器人，并对 Secret 做加密存储与掩码返回。需要 `notification_bot:create` 权限。",
 )
 async def create_notification_bot(
     request: Request,
@@ -65,7 +65,7 @@ async def create_notification_bot(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="create",
+        action="notification_bot.create",
         resource_type="notification_bot",
         payload=payload,
         response_status=status.HTTP_201_CREATED,
@@ -77,7 +77,7 @@ async def create_notification_bot(
     "/{bot_id}",
     response_model=NotificationBotResponse,
     summary="更新通知机器人",
-    description="更新指定通知机器人；传入新的 Secret 时会重新加密保存。需要 `notification_bot:update` 权限。",
+    description="更新指定通知机器人的 webhook、密钥掩码与模板配置。需要 `notification_bot:update` 权限。",
 )
 async def update_notification_bot(
     request: Request,
@@ -90,7 +90,7 @@ async def update_notification_bot(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="update",
+        action="notification_bot.update",
         resource_type="notification_bot",
         payload=payload,
         response_status=status.HTTP_200_OK,
@@ -101,7 +101,7 @@ async def update_notification_bot(
 @router.patch(
     "/{bot_id}/status",
     response_model=NotificationBotResponse,
-    summary="修改通知机器人启用状态",
+    summary="修改机器人启用状态",
     description="启用或停用指定通知机器人。需要 `notification_bot:status` 权限。",
 )
 async def update_notification_bot_status(
@@ -115,7 +115,7 @@ async def update_notification_bot_status(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="status",
+        action="notification_bot.status",
         resource_type="notification_bot",
         payload=payload,
         response_status=status.HTTP_200_OK,

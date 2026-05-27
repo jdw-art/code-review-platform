@@ -53,7 +53,7 @@ async def create_menu(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="create",
+        action="menu.create",
         resource_type="menu",
         payload=payload,
         response_status=status.HTTP_201_CREATED,
@@ -78,7 +78,7 @@ async def update_menu(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="update",
+        action="menu.update",
         resource_type="menu",
         payload=payload,
         response_status=status.HTTP_200_OK,
@@ -102,7 +102,7 @@ async def delete_menu(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="delete",
+        action="menu.delete",
         resource_type="menu",
         response_status=status.HTTP_204_NO_CONTENT,
     )

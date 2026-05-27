@@ -35,7 +35,7 @@ async def login(
     audit_context = AuditLogService.build_context(
         request=request,
         username=payload.username,
-        action="login",
+        action="auth.login",
         resource_type="auth",
         resource_name=payload.username,
         payload=payload,
@@ -48,7 +48,7 @@ async def login(
             AuditLogService.build_context(
                 request=request,
                 username=payload.username,
-                action="login",
+                action="auth.login",
                 resource_type="auth",
                 payload=payload,
                 response_status=exc.status_code,
@@ -86,19 +86,38 @@ async def logout(
     payload: RefreshTokenRequest,
     current_user: User = Depends(get_current_user),
     service: AuthService = Depends(),
+    audit_service: AuditLogService = Depends(),
 ) -> Response:
     """注销当前会话。"""
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="logout",
+        action="auth.logout",
         resource_type="auth",
         resource_id=current_user.id,
         resource_name=current_user.username,
         payload=payload,
         response_status=status.HTTP_204_NO_CONTENT,
     )
-    await service.logout(current_user, payload.refresh_token, audit_context)
+    try:
+        await service.logout(current_user, payload.refresh_token, audit_context)
+    except DomainError as exc:
+        audit_service.record_action(
+            AuditLogService.build_context(
+                request=request,
+                current_user=current_user,
+                action="auth.logout",
+                resource_type="auth",
+                resource_id=current_user.id,
+                resource_name=current_user.username,
+                payload=payload,
+                response_status=exc.status_code,
+                result="failure",
+                error_message=exc.message,
+            ),
+            commit=True,
+        )
+        raise
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -117,7 +136,7 @@ async def logout_all(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="logout-all",
+        action="auth.logout_all",
         resource_type="auth",
         resource_id=current_user.id,
         resource_name=current_user.username,
@@ -138,17 +157,36 @@ async def change_password(
     payload: ChangePasswordRequest,
     current_user: User = Depends(get_current_user),
     service: AuthService = Depends(),
+    audit_service: AuditLogService = Depends(),
 ) -> Response:
     """修改当前登录用户的密码。"""
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="change-password",
+        action="auth.change_password",
         resource_type="auth",
         resource_id=current_user.id,
         resource_name=current_user.username,
         payload=payload,
         response_status=status.HTTP_204_NO_CONTENT,
     )
-    await service.change_password(current_user, payload, audit_context)
+    try:
+        await service.change_password(current_user, payload, audit_context)
+    except DomainError as exc:
+        audit_service.record_action(
+            AuditLogService.build_context(
+                request=request,
+                current_user=current_user,
+                action="auth.change_password",
+                resource_type="auth",
+                resource_id=current_user.id,
+                resource_name=current_user.username,
+                payload=payload,
+                response_status=exc.status_code,
+                result="failure",
+                error_message=exc.message,
+            ),
+            commit=True,
+        )
+        raise
     return Response(status_code=status.HTTP_204_NO_CONTENT)

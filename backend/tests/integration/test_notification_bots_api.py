@@ -75,7 +75,7 @@ def test_notification_bots_api_supports_crud_status_and_encrypts_secret(
         .where(
             AuditLog.resource_type == "notification_bot",
             AuditLog.resource_id == created["id"],
-            AuditLog.action == "create",
+            AuditLog.action == "notification_bot.create",
         )
         .order_by(AuditLog.id.desc())
     )
@@ -93,5 +93,5 @@ def test_notification_bots_api_exposes_chinese_openapi(
 
     assert response.status_code == 200
     operation = response.json()["paths"]["/api/v1/notification-bots"]["get"]
-    assert operation["summary"] == "获取通知机器人列表"
-    assert "分页返回通知机器人配置" in operation["description"]
+    assert operation["summary"] == "获取机器人列表"
+    assert "分页返回通知机器人列表" in operation["description"]

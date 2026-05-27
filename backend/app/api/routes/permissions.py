@@ -45,7 +45,7 @@ async def create_permission(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="create",
+        action="permission.create",
         resource_type="permission",
         payload=payload,
         response_status=status.HTTP_201_CREATED,
@@ -70,7 +70,7 @@ async def update_permission(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="update",
+        action="permission.update",
         resource_type="permission",
         payload=payload,
         response_status=status.HTTP_200_OK,
@@ -94,7 +94,7 @@ async def delete_permission(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="delete",
+        action="permission.delete",
         resource_type="permission",
         response_status=status.HTTP_204_NO_CONTENT,
     )

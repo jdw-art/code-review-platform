@@ -159,7 +159,14 @@ class UserService:
         self.session.commit()
         self.session.refresh(user)
         if not payload.is_active:
-            await self.refresh_store.revoke_all_user_sessions(user.id)
+            try:
+                await self.refresh_store.revoke_all_user_sessions(user.id)
+            except Exception:
+                logger.warning(
+                    "Failed to revoke refresh sessions after disabling user_id=%s.",
+                    user.id,
+                    exc_info=True,
+                )
         user = self._get_user_or_404(user.id)
         logger.info(
             "User status updated target_user_id=%s is_active=%s by user_id=%s.",

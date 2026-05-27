@@ -60,7 +60,7 @@ async def create_user(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="create",
+        action="user.create",
         resource_type="user",
         payload=payload,
         response_status=status.HTTP_201_CREATED,
@@ -85,7 +85,7 @@ async def update_user(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="update",
+        action="user.update",
         resource_type="user",
         payload=payload,
         response_status=status.HTTP_200_OK,
@@ -110,7 +110,7 @@ async def update_user_status(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="status",
+        action="user.status",
         resource_type="user",
         payload=payload,
         response_status=status.HTTP_200_OK,
@@ -135,7 +135,7 @@ async def reset_user_password(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="reset-password",
+        action="user.reset_password",
         resource_type="user",
         payload=payload,
         response_status=status.HTTP_204_NO_CONTENT,
@@ -161,7 +161,7 @@ async def assign_user_roles(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="assign-role",
+        action="user.assign_role",
         resource_type="user",
         payload=payload,
         response_status=status.HTTP_200_OK,

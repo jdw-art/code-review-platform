@@ -59,7 +59,7 @@ async def create_role(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="create",
+        action="role.create",
         resource_type="role",
         payload=payload,
         response_status=status.HTTP_201_CREATED,
@@ -84,7 +84,7 @@ async def update_role(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="update",
+        action="role.update",
         resource_type="role",
         payload=payload,
         response_status=status.HTTP_200_OK,
@@ -108,7 +108,7 @@ async def delete_role(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="delete",
+        action="role.delete",
         resource_type="role",
         response_status=status.HTTP_204_NO_CONTENT,
     )
@@ -133,7 +133,7 @@ async def assign_role_permissions(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="assign-permission",
+        action="role.assign_permission",
         resource_type="role",
         payload=payload,
         response_status=status.HTTP_200_OK,
@@ -158,7 +158,7 @@ async def assign_role_menus(
     audit_context = AuditLogService.build_context(
         request=request,
         current_user=current_user,
-        action="assign-menu",
+        action="role.assign_menu",
         resource_type="role",
         payload=payload,
         response_status=status.HTTP_200_OK,
