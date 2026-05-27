@@ -1,3 +1,4 @@
+from app.core.crypto import SecretCipher
 from app.core.config import Settings
 
 
@@ -23,3 +24,12 @@ def test_settings_expose_secret_encryption_key() -> None:
     settings = Settings()
 
     assert settings.secret_encryption_key
+
+
+def test_settings_default_secret_encryption_key_supports_round_trip() -> None:
+    settings = Settings()
+    cipher = SecretCipher(settings.secret_encryption_key)
+    encrypted = cipher.encrypt_text("top-secret")
+
+    assert encrypted != "top-secret"
+    assert cipher.decrypt_text(encrypted) == "top-secret"
