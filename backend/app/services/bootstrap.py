@@ -11,6 +11,7 @@ from app.db.models import Role, User
 from app.db.models.role import SYSTEM_SUPER_ADMIN_ROLE_CODE, SYSTEM_SUPER_ADMIN_ROLE_NAME
 from app.db.session import SessionLocal
 from app.security.passwords import hash_password
+from app.services.admin_console_bootstrap import bootstrap_admin_console_resources
 
 SessionFactory = Callable[[], Session]
 
@@ -67,6 +68,7 @@ def _bootstrap_once(session: Session, settings: Settings) -> None:
     role = _get_or_create_super_admin_role(session)
     user = _get_or_create_bootstrap_admin(session, settings)
     _ensure_bootstrap_admin_role(user, role)
+    bootstrap_admin_console_resources(session)
 
 
 def bootstrap_initial_admin(
