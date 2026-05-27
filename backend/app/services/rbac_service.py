@@ -23,6 +23,7 @@ from app.schemas.role import (
     RoleUpdateRequest,
 )
 from app.services.access_context import build_menu_tree
+from app.services.audit_log_service import AuditActionContext, AuditLogService
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class RBACService:
 
     def __init__(self, session: Session = Depends(get_db)) -> None:
         self.session = session
+        self.audit_log_service = AuditLogService(session)
 
     async def list_roles(self) -> list[RoleResponse]:
         """返回角色列表及其权限、菜单摘要。"""
@@ -50,7 +52,12 @@ class RBACService:
         role = self._get_role_or_404(role_id)
         return self._to_role_response(role)
 
-    async def create_role(self, payload: RoleCreateRequest) -> RoleResponse:
+    async def create_role(
+        self,
+        current_user,
+        payload: RoleCreateRequest,
+        audit_context: AuditActionContext | None = None,
+    ) -> RoleResponse:
         """创建新的角色定义。"""
         role = Role(
             name=payload.name,
@@ -59,24 +66,54 @@ class RBACService:
             is_system=False,
         )
         self.session.add(role)
+        self.session.flush()
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=role.id,
+                    resource_name=role.name,
+                    response_status=status.HTTP_201_CREATED,
+                ),
+            )
         self.session.commit()
         self.session.refresh(role)
         role = self._get_role_or_404(role.id)
         logger.info("Role created role_id=%s code=%s.", role.id, role.code)
         return self._to_role_response(role)
 
-    async def update_role(self, role_id: int, payload: RoleUpdateRequest) -> RoleResponse:
+    async def update_role(
+        self,
+        current_user,
+        role_id: int,
+        payload: RoleUpdateRequest,
+        audit_context: AuditActionContext | None = None,
+    ) -> RoleResponse:
         """更新角色的展示信息。"""
         role = self._get_role_or_404(role_id)
         for field_name, field_value in payload.model_dump(exclude_unset=True).items():
             setattr(role, field_name, field_value)
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=role.id,
+                    resource_name=role.name,
+                    response_status=status.HTTP_200_OK,
+                ),
+            )
         self.session.commit()
         self.session.refresh(role)
         role = self._get_role_or_404(role.id)
         logger.info("Role updated role_id=%s.", role.id)
         return self._to_role_response(role)
 
-    async def delete_role(self, role_id: int) -> None:
+    async def delete_role(
+        self,
+        current_user,
+        role_id: int,
+        audit_context: AuditActionContext | None = None,
+    ) -> None:
         """删除指定角色。"""
         role = self._get_role_or_404(role_id)
         if role.is_system:
@@ -84,18 +121,38 @@ class RBACService:
                 code="SYSTEM_ROLE_DELETE_FORBIDDEN",
                 message="System roles cannot be deleted.",
             )
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=role.id,
+                    resource_name=role.name,
+                    response_status=status.HTTP_204_NO_CONTENT,
+                ),
+            )
         self.session.delete(role)
         self.session.commit()
         logger.info("Role deleted role_id=%s.", role_id)
 
     async def assign_permissions(
         self,
+        current_user,
         role_id: int,
         payload: RolePermissionAssignRequest,
+        audit_context: AuditActionContext | None = None,
     ) -> RoleResponse:
         """覆盖指定角色当前的权限集合。"""
         role = self._get_role_or_404(role_id)
         role.permissions = self._get_permissions_or_404(payload.permission_ids)
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=role.id,
+                    resource_name=role.name,
+                    response_status=status.HTTP_200_OK,
+                ),
+            )
         self.session.commit()
         self.session.refresh(role)
         role = self._get_role_or_404(role.id)
@@ -104,12 +161,23 @@ class RBACService:
 
     async def assign_menus(
         self,
+        current_user,
         role_id: int,
         payload: RoleMenuAssignRequest,
+        audit_context: AuditActionContext | None = None,
     ) -> RoleResponse:
         """覆盖指定角色当前的菜单集合。"""
         role = self._get_role_or_404(role_id)
         role.menus = self._get_menus_or_404(payload.menu_ids)
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=role.id,
+                    resource_name=role.name,
+                    response_status=status.HTTP_200_OK,
+                ),
+            )
         self.session.commit()
         self.session.refresh(role)
         role = self._get_role_or_404(role.id)
@@ -123,9 +191,15 @@ class RBACService:
         ).all()
         return [self._to_permission_response(permission) for permission in permissions]
 
+    async def get_permission(self, permission_id: int) -> PermissionResponse:
+        """按权限 ID 查询详情。"""
+        return self._to_permission_response(self._get_permission_or_404(permission_id))
+
     async def create_permission(
         self,
+        current_user,
         payload: PermissionCreateRequest,
+        audit_context: AuditActionContext | None = None,
     ) -> PermissionResponse:
         """创建新的权限定义。"""
         permission = Permission(
@@ -137,6 +211,16 @@ class RBACService:
             is_system=False,
         )
         self.session.add(permission)
+        self.session.flush()
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=permission.id,
+                    resource_name=permission.code,
+                    response_status=status.HTTP_201_CREATED,
+                ),
+            )
         self.session.commit()
         self.session.refresh(permission)
         logger.info("Permission created permission_id=%s code=%s.", permission.id, permission.code)
@@ -144,25 +228,50 @@ class RBACService:
 
     async def update_permission(
         self,
+        current_user,
         permission_id: int,
         payload: PermissionUpdateRequest,
+        audit_context: AuditActionContext | None = None,
     ) -> PermissionResponse:
         """更新指定权限。"""
         permission = self._get_permission_or_404(permission_id)
         for field_name, field_value in payload.model_dump(exclude_unset=True).items():
             setattr(permission, field_name, field_value)
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=permission.id,
+                    resource_name=permission.code,
+                    response_status=status.HTTP_200_OK,
+                ),
+            )
         self.session.commit()
         self.session.refresh(permission)
         logger.info("Permission updated permission_id=%s.", permission.id)
         return self._to_permission_response(permission)
 
-    async def delete_permission(self, permission_id: int) -> None:
+    async def delete_permission(
+        self,
+        current_user,
+        permission_id: int,
+        audit_context: AuditActionContext | None = None,
+    ) -> None:
         """删除指定权限。"""
         permission = self._get_permission_or_404(permission_id)
         if permission.is_system:
             raise DomainConflictError(
                 code="SYSTEM_PERMISSION_DELETE_FORBIDDEN",
                 message="System permissions cannot be deleted.",
+            )
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=permission.id,
+                    resource_name=permission.code,
+                    response_status=status.HTTP_204_NO_CONTENT,
+                ),
             )
         self.session.delete(permission)
         self.session.commit()
@@ -172,6 +281,10 @@ class RBACService:
         """返回菜单平铺列表。"""
         menus = self.session.scalars(select(Menu).order_by(Menu.sort.asc(), Menu.id.asc())).all()
         return [self._to_menu_response(menu) for menu in menus]
+
+    async def get_menu(self, menu_id: int) -> MenuResponse:
+        """按菜单 ID 查询详情。"""
+        return self._to_menu_response(self._get_menu_or_404(menu_id))
 
     async def list_menu_tree(self) -> list[MenuResponse]:
         """返回菜单树结构。"""
@@ -184,7 +297,12 @@ class RBACService:
         tree = build_menu_tree(menu_rows)
         return [MenuResponse.model_validate(node) for node in tree]
 
-    async def create_menu(self, payload: MenuCreateRequest) -> MenuResponse:
+    async def create_menu(
+        self,
+        current_user,
+        payload: MenuCreateRequest,
+        audit_context: AuditActionContext | None = None,
+    ) -> MenuResponse:
         """创建新的菜单节点。"""
         if payload.parent_id is not None:
             self._get_menu_or_404(payload.parent_id)
@@ -202,12 +320,28 @@ class RBACService:
             is_system=False,
         )
         self.session.add(menu)
+        self.session.flush()
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=menu.id,
+                    resource_name=menu.name,
+                    response_status=status.HTTP_201_CREATED,
+                ),
+            )
         self.session.commit()
         self.session.refresh(menu)
         logger.info("Menu created menu_id=%s path=%s.", menu.id, menu.path)
         return self._to_menu_response(menu)
 
-    async def update_menu(self, menu_id: int, payload: MenuUpdateRequest) -> MenuResponse:
+    async def update_menu(
+        self,
+        current_user,
+        menu_id: int,
+        payload: MenuUpdateRequest,
+        audit_context: AuditActionContext | None = None,
+    ) -> MenuResponse:
         """更新指定菜单。"""
         menu = self._get_menu_or_404(menu_id)
         updates = payload.model_dump(exclude_unset=True)
@@ -216,18 +350,41 @@ class RBACService:
             self._get_menu_or_404(int(updates["parent_id"]))
         for field_name, field_value in updates.items():
             setattr(menu, field_name, field_value)
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=menu.id,
+                    resource_name=menu.name,
+                    response_status=status.HTTP_200_OK,
+                ),
+            )
         self.session.commit()
         self.session.refresh(menu)
         logger.info("Menu updated menu_id=%s.", menu.id)
         return self._to_menu_response(menu)
 
-    async def delete_menu(self, menu_id: int) -> None:
+    async def delete_menu(
+        self,
+        current_user,
+        menu_id: int,
+        audit_context: AuditActionContext | None = None,
+    ) -> None:
         """删除指定菜单。"""
         menu = self._get_menu_or_404(menu_id)
         if menu.is_system:
             raise DomainConflictError(
                 code="SYSTEM_MENU_DELETE_FORBIDDEN",
                 message="System menus cannot be deleted.",
+            )
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=menu.id,
+                    resource_name=menu.name,
+                    response_status=status.HTTP_204_NO_CONTENT,
+                ),
             )
         self.session.delete(menu)
         self.session.commit()

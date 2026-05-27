@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
+from app.db.models import User
 from app.schemas.menu import MenuCreateRequest, MenuResponse, MenuUpdateRequest
 from app.security.deps import require_permission
+from app.services.audit_log_service import AuditLogService
 from app.services.rbac_service import RBACService
 
 
@@ -38,42 +40,71 @@ async def list_menu_tree(service: RBACService = Depends()) -> list[MenuResponse]
     "",
     response_model=MenuResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_permission("menu:create"))],
     summary="创建菜单",
     description="创建新的菜单节点，可指定父级菜单。需要 `menu:create` 权限。",
 )
 async def create_menu(
+    request: Request,
     payload: MenuCreateRequest,
+    current_user: User = Depends(require_permission("menu:create")),
     service: RBACService = Depends(),
 ) -> MenuResponse:
     """创建新的菜单节点。"""
-    return await service.create_menu(payload)
+    audit_context = AuditLogService.build_context(
+        request=request,
+        current_user=current_user,
+        action="create",
+        resource_type="menu",
+        payload=payload,
+        response_status=status.HTTP_201_CREATED,
+    )
+    return await service.create_menu(current_user, payload, audit_context)
 
 
 @router.patch(
     "/{menu_id}",
     response_model=MenuResponse,
-    dependencies=[Depends(require_permission("menu:update"))],
     summary="更新菜单",
     description="更新指定菜单的名称、路径、父级或展示属性。需要 `menu:update` 权限。",
 )
 async def update_menu(
+    request: Request,
     menu_id: int,
     payload: MenuUpdateRequest,
+    current_user: User = Depends(require_permission("menu:update")),
     service: RBACService = Depends(),
 ) -> MenuResponse:
     """更新指定菜单。"""
-    return await service.update_menu(menu_id, payload)
+    audit_context = AuditLogService.build_context(
+        request=request,
+        current_user=current_user,
+        action="update",
+        resource_type="menu",
+        payload=payload,
+        response_status=status.HTTP_200_OK,
+    )
+    return await service.update_menu(current_user, menu_id, payload, audit_context)
 
 
 @router.delete(
     "/{menu_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_permission("menu:delete"))],
     summary="删除菜单",
     description="删除指定菜单。系统内置菜单不允许删除。需要 `menu:delete` 权限。",
 )
-async def delete_menu(menu_id: int, service: RBACService = Depends()) -> Response:
+async def delete_menu(
+    request: Request,
+    menu_id: int,
+    current_user: User = Depends(require_permission("menu:delete")),
+    service: RBACService = Depends(),
+) -> Response:
     """删除指定菜单。"""
-    await service.delete_menu(menu_id)
+    audit_context = AuditLogService.build_context(
+        request=request,
+        current_user=current_user,
+        action="delete",
+        resource_type="menu",
+        response_status=status.HTTP_204_NO_CONTENT,
+    )
+    await service.delete_menu(current_user, menu_id, audit_context)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

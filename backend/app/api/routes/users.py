@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.db.models import User
 from app.schemas.user import (
@@ -11,7 +11,8 @@ from app.schemas.user import (
     UserStatusUpdateRequest,
     UserUpdateRequest,
 )
-from app.security.deps import get_current_user, require_permission
+from app.security.deps import require_permission
+from app.services.audit_log_service import AuditLogService
 from app.services.user_service import UserService
 
 
@@ -46,80 +47,123 @@ async def get_user(user_id: int, service: UserService = Depends()) -> UserRespon
     "",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_permission("user:create"))],
     summary="创建用户",
     description="创建一个新的后台用户，并可在创建时一次性绑定角色。需要 `user:create` 权限。",
 )
 async def create_user(
+    request: Request,
     payload: UserCreateRequest,
+    current_user: User = Depends(require_permission("user:create")),
     service: UserService = Depends(),
 ) -> UserResponse:
     """创建新的用户账号。"""
-    return await service.create_user(payload)
+    audit_context = AuditLogService.build_context(
+        request=request,
+        current_user=current_user,
+        action="create",
+        resource_type="user",
+        payload=payload,
+        response_status=status.HTTP_201_CREATED,
+    )
+    return await service.create_user(current_user, payload, audit_context)
 
 
 @router.patch(
     "/{user_id}",
     response_model=UserResponse,
-    dependencies=[Depends(require_permission("user:update"))],
     summary="更新用户资料",
     description="更新指定用户的昵称、邮箱、手机号或超级管理员状态。需要 `user:update` 权限。",
 )
 async def update_user(
+    request: Request,
     user_id: int,
     payload: UserUpdateRequest,
     current_user: User = Depends(require_permission("user:update")),
     service: UserService = Depends(),
 ) -> UserResponse:
     """更新指定用户的资料字段。"""
-    return await service.update_user(current_user, user_id, payload)
+    audit_context = AuditLogService.build_context(
+        request=request,
+        current_user=current_user,
+        action="update",
+        resource_type="user",
+        payload=payload,
+        response_status=status.HTTP_200_OK,
+    )
+    return await service.update_user(current_user, user_id, payload, audit_context)
 
 
 @router.patch(
     "/{user_id}/status",
     response_model=UserResponse,
-    dependencies=[Depends(require_permission("user:status"))],
     summary="修改用户启用状态",
     description="启用或禁用指定用户。禁用用户时会撤销其现有 refresh token 会话。需要 `user:status` 权限。",
 )
 async def update_user_status(
+    request: Request,
     user_id: int,
     payload: UserStatusUpdateRequest,
     current_user: User = Depends(require_permission("user:status")),
     service: UserService = Depends(),
 ) -> UserResponse:
     """修改用户的启用状态。"""
-    return await service.update_status(current_user, user_id, payload)
+    audit_context = AuditLogService.build_context(
+        request=request,
+        current_user=current_user,
+        action="status",
+        resource_type="user",
+        payload=payload,
+        response_status=status.HTTP_200_OK,
+    )
+    return await service.update_status(current_user, user_id, payload, audit_context)
 
 
 @router.post(
     "/{user_id}/reset-password",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_permission("user:reset-password"))],
     summary="重置用户密码",
     description="管理员为指定用户重置密码，并强制该用户下次登录后立即修改密码。需要 `user:reset-password` 权限。",
 )
 async def reset_user_password(
+    request: Request,
     user_id: int,
     payload: UserResetPasswordRequest,
+    current_user: User = Depends(require_permission("user:reset-password")),
     service: UserService = Depends(),
 ) -> Response:
     """重置指定用户的密码。"""
-    await service.reset_password(user_id, payload)
+    audit_context = AuditLogService.build_context(
+        request=request,
+        current_user=current_user,
+        action="reset-password",
+        resource_type="user",
+        payload=payload,
+        response_status=status.HTTP_204_NO_CONTENT,
+    )
+    await service.reset_password(current_user, user_id, payload, audit_context)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put(
     "/{user_id}/roles",
     response_model=UserResponse,
-    dependencies=[Depends(require_permission("user:assign-role"))],
     summary="分配用户角色",
     description="使用角色 ID 列表覆盖指定用户当前的角色集合。需要 `user:assign-role` 权限。",
 )
 async def assign_user_roles(
+    request: Request,
     user_id: int,
     payload: UserRoleAssignRequest,
+    current_user: User = Depends(require_permission("user:assign-role")),
     service: UserService = Depends(),
 ) -> UserResponse:
     """为指定用户分配角色。"""
-    return await service.assign_roles(user_id, payload)
+    audit_context = AuditLogService.build_context(
+        request=request,
+        current_user=current_user,
+        action="assign-role",
+        resource_type="user",
+        payload=payload,
+        response_status=status.HTTP_200_OK,
+    )
+    return await service.assign_roles(current_user, user_id, payload, audit_context)

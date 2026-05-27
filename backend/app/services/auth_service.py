@@ -20,6 +20,7 @@ from app.schemas.auth import ChangePasswordRequest, LoginRequest, TokenPairRespo
 from app.security.passwords import hash_password, verify_password
 from app.security.redis_store import RefreshSessionStore
 from app.security.tokens import TokenError, decode_token, issue_access_token, issue_refresh_token
+from app.services.audit_log_service import AuditActionContext, AuditLogService
 
 logger = logging.getLogger(__name__)
 
@@ -79,12 +80,18 @@ class AuthService:
         session: Session = Depends(get_db),
         settings: Settings = Depends(get_settings),
         refresh_store: RefreshSessionStore = Depends(get_refresh_session_store),
+        audit_log_service: AuditLogService = Depends(),
     ) -> None:
         self.session = session
         self.settings = settings
         self.refresh_store = refresh_store
+        self.audit_log_service = audit_log_service
 
-    async def login(self, payload: LoginRequest) -> TokenPairResponse:
+    async def login(
+        self,
+        payload: LoginRequest,
+        audit_context: AuditActionContext | None = None,
+    ) -> TokenPairResponse:
         """验证用户名密码并创建新的登录会话。"""
         statement = select(User).where(
             User.username == payload.username,
@@ -98,6 +105,15 @@ class AuthService:
         # 先创建刷新会话，再提交数据库；如果提交失败，需要回滚 Redis 中的会话记录。
         issued_token_pair = await self.issue_token_pair(user)
         user.last_login_at = datetime.now(UTC)
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=user,
+                context=audit_context.with_resource(
+                    resource_id=user.id,
+                    resource_name=user.username,
+                    response_status=200,
+                ),
+            )
         try:
             self.session.commit()
         except Exception:
@@ -149,7 +165,12 @@ class AuthService:
         logger.info("Refresh succeeded for user_id=%s.", user.id)
         return issued_token_pair.token_pair
 
-    async def logout(self, user: User, refresh_token: str) -> None:
+    async def logout(
+        self,
+        user: User,
+        refresh_token: str,
+        audit_context: AuditActionContext | None = None,
+    ) -> None:
         """注销当前 refresh token 对应的会话。"""
         claims = self._decode_refresh_token(refresh_token)
         token_user_id = int(claims["sub"])
@@ -165,6 +186,15 @@ class AuthService:
             require_active=True,
         )
         refresh_session.revoked_at = datetime.now(UTC)
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=user,
+                context=audit_context.with_resource(
+                    resource_id=user.id,
+                    resource_name=user.username,
+                    response_status=204,
+                ),
+            )
         try:
             self.session.commit()
         except Exception:
@@ -178,9 +208,22 @@ class AuthService:
         )
         logger.info("Logout completed for user_id=%s.", user.id)
 
-    async def logout_all(self, user: User) -> None:
+    async def logout_all(
+        self,
+        user: User,
+        audit_context: AuditActionContext | None = None,
+    ) -> None:
         """注销当前用户的全部 refresh token 会话。"""
         self._mark_all_active_refresh_sessions_revoked(user.id)
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=user,
+                context=audit_context.with_resource(
+                    resource_id=user.id,
+                    resource_name=user.username,
+                    response_status=204,
+                ),
+            )
         try:
             self.session.commit()
         except Exception:
@@ -190,7 +233,12 @@ class AuthService:
         await self._best_effort_revoke_all_store_sessions(user.id)
         logger.info("Logout-all completed for user_id=%s.", user.id)
 
-    async def change_password(self, user: User, payload: ChangePasswordRequest) -> None:
+    async def change_password(
+        self,
+        user: User,
+        payload: ChangePasswordRequest,
+        audit_context: AuditActionContext | None = None,
+    ) -> None:
         """修改当前用户密码并撤销全部 refresh token 会话。"""
         if not verify_password(payload.current_password, user.password_hash):
             raise _invalid_credentials_error()
@@ -199,6 +247,15 @@ class AuthService:
         user.must_change_password = False
         # 密码更新后，所有旧 refresh token 都必须失效，避免旧设备继续续期。
         self._mark_all_active_refresh_sessions_revoked(user.id)
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=user,
+                context=audit_context.with_resource(
+                    resource_id=user.id,
+                    resource_name=user.username,
+                    response_status=204,
+                ),
+            )
         try:
             self.session.commit()
         except Exception:

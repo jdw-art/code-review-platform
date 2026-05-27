@@ -21,6 +21,7 @@ from app.schemas.user import (
 )
 from app.security.passwords import hash_password
 from app.services.auth_service import RefreshSessionStore, get_refresh_session_store
+from app.services.audit_log_service import AuditActionContext, AuditLogService
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +33,11 @@ class UserService:
         self,
         session: Session = Depends(get_db),
         refresh_store: RefreshSessionStore = Depends(get_refresh_session_store),
+        audit_log_service: AuditLogService = Depends(),
     ) -> None:
         self.session = session
         self.refresh_store = refresh_store
+        self.audit_log_service = audit_log_service
 
     async def list_users(self) -> list[UserResponse]:
         """返回用户列表及其角色摘要。"""
@@ -50,12 +53,17 @@ class UserService:
         user = self._get_user_or_404(user_id)
         return self._to_user_response(user)
 
-    async def create_user(self, payload: UserCreateRequest) -> UserResponse:
+    async def create_user(
+        self,
+        current_user: User,
+        payload: UserCreateRequest,
+        audit_context: AuditActionContext | None = None,
+    ) -> UserResponse:
         """创建新用户，并可选地绑定角色。"""
         if self.session.scalar(select(User).where(User.username == payload.username)) is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Username already exists.",
+            raise DomainConflictError(
+                code="USERNAME_ALREADY_EXISTS",
+                message="用户名已存在。",
             )
 
         user = User(
@@ -72,6 +80,16 @@ class UserService:
             user.roles = self._get_roles_or_404(payload.role_ids)
 
         self.session.add(user)
+        self.session.flush()
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=user.id,
+                    resource_name=user.username,
+                    response_status=status.HTTP_201_CREATED,
+                ),
+            )
         self.session.commit()
         self.session.refresh(user)
         user = self._get_user_or_404(user.id)
@@ -83,6 +101,7 @@ class UserService:
         current_user: User,
         user_id: int,
         payload: UserUpdateRequest,
+        audit_context: AuditActionContext | None = None,
     ) -> UserResponse:
         """更新用户资料或超级管理员状态。"""
         user = self._get_user_or_404(user_id)
@@ -97,6 +116,15 @@ class UserService:
         for field_name, field_value in updates.items():
             setattr(user, field_name, field_value)
 
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=user.id,
+                    resource_name=user.username,
+                    response_status=status.HTTP_200_OK,
+                ),
+            )
         self.session.commit()
         self.session.refresh(user)
         user = self._get_user_or_404(user.id)
@@ -108,6 +136,7 @@ class UserService:
         current_user: User,
         user_id: int,
         payload: UserStatusUpdateRequest,
+        audit_context: AuditActionContext | None = None,
     ) -> UserResponse:
         """更新用户启用状态。"""
         user = self._get_user_or_404(user_id)
@@ -118,6 +147,15 @@ class UserService:
             # 禁用用户后，应同步撤销其全部 refresh token 会话。
             self._mark_all_active_refresh_sessions_revoked(user.id)
 
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=user.id,
+                    resource_name=user.username,
+                    response_status=status.HTTP_200_OK,
+                ),
+            )
         self.session.commit()
         self.session.refresh(user)
         if not payload.is_active:
@@ -133,8 +171,10 @@ class UserService:
 
     async def reset_password(
         self,
+        current_user: User,
         user_id: int,
         payload: UserResetPasswordRequest,
+        audit_context: AuditActionContext | None = None,
     ) -> None:
         """重置指定用户密码并强制其下次登录修改密码。"""
         user = self._get_user_or_404(user_id)
@@ -142,24 +182,52 @@ class UserService:
         user.must_change_password = True
         self._mark_all_active_refresh_sessions_revoked(user.id)
 
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=user.id,
+                    resource_name=user.username,
+                    response_status=status.HTTP_204_NO_CONTENT,
+                ),
+            )
         self.session.commit()
-        await self.refresh_store.revoke_all_user_sessions(user.id)
+        try:
+            await self.refresh_store.revoke_all_user_sessions(user.id)
+        except Exception:
+            logger.warning(
+                "Failed to revoke refresh sessions after password reset for user_id=%s.",
+                user.id,
+                exc_info=True,
+            )
         logger.info("Password reset for target_user_id=%s.", user.id)
 
     async def assign_roles(
         self,
+        current_user: User,
         user_id: int,
         payload: UserRoleAssignRequest,
+        audit_context: AuditActionContext | None = None,
     ) -> UserResponse:
         """覆盖指定用户当前的角色集合。"""
         user = self._get_user_or_404(user_id)
         user.roles = self._get_roles_or_404(payload.role_ids)
 
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=user.id,
+                    resource_name=user.username,
+                    response_status=status.HTTP_200_OK,
+                ),
+            )
         self.session.commit()
         self.session.refresh(user)
         user = self._get_user_or_404(user.id)
         logger.info("Roles assigned to target_user_id=%s.", user.id)
         return self._to_user_response(user)
+
 
     def _get_user_or_404(self, user_id: int) -> User:
         """读取单个用户，不存在则抛出 404。"""
