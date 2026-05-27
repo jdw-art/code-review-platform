@@ -33,3 +33,12 @@ def test_settings_default_secret_encryption_key_supports_round_trip() -> None:
 
     assert encrypted != "top-secret"
     assert cipher.decrypt_text(encrypted) == "top-secret"
+
+
+def test_settings_flag_default_secret_encryption_key_as_insecure() -> None:
+    settings = Settings(
+        jwt_secret_key="custom-jwt-secret",
+        bootstrap_admin_password="custom-bootstrap-password",
+    )
+
+    assert settings.uses_insecure_auth_defaults() is True

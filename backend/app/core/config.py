@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
+DEFAULT_SECRET_ENCRYPTION_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 
 
 class Settings(BaseSettings):
@@ -23,7 +24,7 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_db: int = 0
     jwt_secret_key: str = "change-me-in-env"
-    secret_encryption_key: str = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+    secret_encryption_key: str = DEFAULT_SECRET_ENCRYPTION_KEY
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 7
     bootstrap_admin_username: str = "admin"
@@ -32,5 +33,6 @@ class Settings(BaseSettings):
     def uses_insecure_auth_defaults(self) -> bool:
         return (
             self.jwt_secret_key == "change-me-in-env"
+            or self.secret_encryption_key == DEFAULT_SECRET_ENCRYPTION_KEY
             or self.bootstrap_admin_password == "jdw112233"
         )
