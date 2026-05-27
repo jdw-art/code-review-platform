@@ -1,11 +1,16 @@
 from datetime import UTC, datetime, timedelta
 
 from authlib.jose import jwt
+from authlib.jose.errors import JoseError
 
 from app.core.config import Settings
 
 
 settings = Settings()
+
+
+class TokenError(ValueError):
+    """Raised when a token cannot be decoded or does not match the expected type."""
 
 
 def issue_access_token(*, user_id: int, username: str, is_superuser: bool) -> str:
@@ -30,8 +35,14 @@ def issue_refresh_token(*, user_id: int, session_jti: str) -> str:
 
 
 def decode_token(token: str, expected_token_type: str) -> dict:
-    claims = jwt.decode(token, settings.jwt_secret_key)
-    claims.validate()
-    if claims["token_type"] != expected_token_type:
-        raise ValueError(f"Expected {expected_token_type} token.")
+    try:
+        claims = jwt.decode(token, settings.jwt_secret_key)
+        claims.validate()
+    except JoseError as exc:
+        raise TokenError("Invalid or expired token.") from exc
+
+    token_type = claims.get("token_type")
+    if token_type != expected_token_type:
+        raise TokenError(f"Expected {expected_token_type} token.")
+
     return dict(claims)
