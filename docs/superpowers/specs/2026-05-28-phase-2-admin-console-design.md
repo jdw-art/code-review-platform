@@ -47,6 +47,7 @@
 - Deep Review 多轮对话能力
 - 复杂 BI、看板大屏与高级钻取分析
 - 真实通知投递闭环，仅提供配置管理与测试接口
+- 通知 `@成员` 规则管理页面与投递策略
 - 多租户与复杂组织架构
 - 一个项目绑定多个模板、多个模型或多个机器人
 
@@ -110,7 +111,7 @@
 #### 成员分析
 
 - `GET /api/v1/member-analytics`
-- `GET /api/v1/member-analytics/{member_name}`
+- `GET /api/v1/member-analytics/{project_member_id}`
 
 #### 大模型管理
 
@@ -207,6 +208,8 @@
 - `key` 全局唯一
 - 一个项目在第二阶段只能绑定一个项目模板、一个默认模型、一个默认机器人
 - 停用项目不能接收 mock 审查事件写入
+- 项目保存或更新时，不允许绑定已停用的模板、模型或机器人
+- 已被启用项目绑定的模板、模型或机器人，在解除绑定前不允许停用或删除
 
 ### 7.3 `project_templates`
 
@@ -335,6 +338,9 @@
 - `api_key` 必须加密存储，不允许 hash 存储
 - 接口响应只返回 `api_key_masked`
 - 同一时刻只允许一个默认模型
+- `prompt_template` 仅作为模型级默认提示词或系统补充提示词，不作为项目审查提示词主来源
+- 项目实际使用的审查提示词优先取 `project_templates.review_prompt_template`
+- 仅当项目模板未配置提示词时，才允许回退使用模型级 `prompt_template`
 
 ### 7.7 `notification_bots`
 
@@ -382,6 +388,7 @@
 
 - 第二阶段允许 `user_id` 为空
 - `member_name` 与 `member_email` 可先与审查记录中的作者信息做映射
+- 成员分析详情与前端明细跳转应以 `project_members.id` 作为稳定标识，而不是直接使用 `member_name`
 
 ### 7.9 `audit_logs`
 
@@ -408,10 +415,44 @@
 
 ## 8. Mock 审查事件输入契约
 
-第二阶段不接真实 Git 平台，但必须支持 mock 审查事件导入。输入契约兼容下列两个业务对象，并允许在现有字段基础上扩展：
+第二阶段不接真实 Git 平台，但必须支持 mock 审查事件导入。为避免“平台内项目定位字段”和“上游业务事件字段”混用，`mock-ingest` 请求体采用双层结构：
 
-- `MergeRequestReviewEntity`
-- `PushReviewEntity`
+- 外层：导入元数据，用于定位平台内项目、标记来源与控制导入行为
+- 内层：业务 payload，兼容 `MergeRequestReviewEntity` / `PushReviewEntity`，并允许在现有字段基础上扩展
+
+推荐请求结构：
+
+```json
+{
+  "event_type": "merge_request",
+  "project_id": 1001,
+  "project_key": null,
+  "source": "mock",
+  "payload": {
+    "project_name": "demo-service",
+    "author": "alice",
+    "source_branch": "feature/x",
+    "target_branch": "main",
+    "updated_at": 1710000000,
+    "commits": [],
+    "score": 86.5,
+    "url": "https://example.local/mr/1",
+    "review_result": "...",
+    "url_slug": "mr-1",
+    "webhook_data": {},
+    "additions": 10,
+    "deletions": 2,
+    "last_commit_id": "abc123"
+  }
+}
+```
+
+其中：
+
+- `event_type` 必须为 `push` 或 `merge_request`
+- `project_id` 与 `project_key` 至少提供一个，作为平台内项目主定位字段
+- `payload` 承载上游业务事件数据，兼容但不限于 `MergeRequestReviewEntity` / `PushReviewEntity`
+- `payload.project_name` 可保留作为业务展示字段，但不作为主定位键
 
 导入入口：
 
@@ -420,12 +461,19 @@
 处理流程：
 
 1. 接收 `push` 或 `merge_request` 类型的 mock 事件。
-2. 根据 `project_id` 或 `project_key` 定位现有项目。
+2. 优先根据 `project_id` 或 `project_key` 定位现有项目。
 3. 校验项目是否启用，并读取项目当前绑定的模板、模型、机器人配置。
 4. 将输入事件标准化为统一的 `review_records` 主记录。
 5. 将 `commits` 明细拆分写入 `review_commits`。
 6. 保留原始 `webhook_data`，同时写入项目模板快照与提示词快照。
 7. 返回导入结果、记录 ID、事件类型与去重状态。
+
+兼容策略：
+
+- 若请求未提供 `project_id` 与 `project_key`，可选支持基于 `payload.project_name` 的宽松匹配
+- 宽松匹配仅在能够唯一命中单个启用项目时生效
+- 若匹配结果为 0 个或多个项目，接口必须返回明确错误，不允许猜测性写入
+- 若 `project_id` / `project_key` 与 `payload.project_name` 指向的项目不一致，以外层定位字段为准，并记录审计与运行日志
 
 幂等规则：
 
@@ -471,6 +519,8 @@
 - `review_operator`
 - `viewer`
 
+第二阶段还应补充新模块对应的权限与菜单种子数据，确保前端在完成页面开发后可直接通过 `/api/v1/me/menus` 获取可展示入口。
+
 ## 10. 错误处理与日志
 
 ### 10.1 错误处理
@@ -503,6 +553,12 @@
 - 模型新增、编辑、测试、设默认
 - 机器人新增、编辑、测试
 - mock 审查记录导入
+
+敏感字段处理规则：
+
+- 审计日志中的 `request_payload` 不允许原样记录密码、`api_key`、`secret`、token、refresh token 等敏感字段
+- 对于登录、修改密码、模型编辑、机器人编辑等接口，应在写入审计日志前执行字段剔除或脱敏
+- 原始 `webhook_data` 可按业务需要完整保存到审查记录，但系统日志页面默认不直接暴露完整敏感载荷
 
 ## 11. 前端实现边界
 
