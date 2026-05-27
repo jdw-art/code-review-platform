@@ -24,9 +24,9 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=100), nullable=False),
         sa.Column("code", sa.String(length=100), nullable=False),
         sa.Column("description", sa.String(length=255), nullable=True),
-        sa.Column("file_extensions", sa.JSON(), nullable=False),
+        sa.Column("file_extensions", sa.JSON(), nullable=False, server_default=sa.text("'[]'::json")),
         sa.Column("review_prompt_template", sa.Text(), nullable=True),
-        sa.Column("prompt_metadata", sa.JSON(), nullable=False),
+        sa.Column("prompt_metadata", sa.JSON(), nullable=False, server_default=sa.text("'{}'::json")),
         sa.Column("is_system", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("created_by", sa.BigInteger(), nullable=True),
@@ -82,6 +82,13 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
     )
+    op.create_index(
+        "ux_llm_models_single_default",
+        "llm_models",
+        ["is_default"],
+        unique=True,
+        postgresql_where=sa.text("is_default"),
+    )
 
     op.create_table(
         "notification_bots",
@@ -92,7 +99,7 @@ def upgrade() -> None:
         sa.Column("secret_encrypted", sa.Text(), nullable=True),
         sa.Column("secret_masked", sa.String(length=255), nullable=True),
         sa.Column("mention_strategy", sa.String(length=50), nullable=True),
-        sa.Column("template_config", sa.JSON(), nullable=False),
+        sa.Column("template_config", sa.JSON(), nullable=False, server_default=sa.text("'{}'::json")),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("last_test_status", sa.String(length=32), nullable=True),
         sa.Column("last_test_message", sa.Text(), nullable=True),
@@ -125,7 +132,7 @@ def upgrade() -> None:
         sa.Column("template_id", sa.BigInteger(), nullable=True),
         sa.Column("default_model_id", sa.BigInteger(), nullable=True),
         sa.Column("default_bot_id", sa.BigInteger(), nullable=True),
-        sa.Column("settings", sa.JSON(), nullable=False),
+        sa.Column("settings", sa.JSON(), nullable=False, server_default=sa.text("'{}'::json")),
         sa.Column("created_by", sa.BigInteger(), nullable=True),
         sa.Column(
             "created_at",
@@ -152,7 +159,6 @@ def upgrade() -> None:
         sa.Column("project_id", sa.BigInteger(), nullable=False),
         sa.Column("event_type", sa.String(length=32), nullable=False),
         sa.Column("external_event_id", sa.String(length=255), nullable=True),
-        sa.Column("snapshot", sa.JSON(), nullable=True),
         sa.Column("project_name_snapshot", sa.String(length=100), nullable=False),
         sa.Column("template_id_snapshot", sa.BigInteger(), nullable=True),
         sa.Column("template_name_snapshot", sa.String(length=100), nullable=True),
@@ -163,7 +169,7 @@ def upgrade() -> None:
         sa.Column("source_branch", sa.String(length=255), nullable=True),
         sa.Column("target_branch", sa.String(length=255), nullable=True),
         sa.Column("commit_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
-        sa.Column("commit_messages", sa.JSON(), nullable=False),
+        sa.Column("commit_messages", sa.JSON(), nullable=False, server_default=sa.text("'[]'::json")),
         sa.Column("score", sa.Float(), nullable=True),
         sa.Column(
             "review_status",
@@ -178,9 +184,9 @@ def upgrade() -> None:
         sa.Column("last_commit_id", sa.String(length=255), nullable=True),
         sa.Column("additions", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("deletions", sa.Integer(), nullable=False, server_default=sa.text("0")),
-        sa.Column("agent_trace", sa.JSON(), nullable=False),
-        sa.Column("webhook_data", sa.JSON(), nullable=False),
-        sa.Column("extra_data", sa.JSON(), nullable=False),
+        sa.Column("agent_trace", sa.JSON(), nullable=False, server_default=sa.text("'{}'::json")),
+        sa.Column("webhook_data", sa.JSON(), nullable=False, server_default=sa.text("'{}'::json")),
+        sa.Column("extra_data", sa.JSON(), nullable=False, server_default=sa.text("'{}'::json")),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -202,10 +208,10 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        "ux_review_records_external_event_id",
+        "ix_review_records_external_event_id",
         "review_records",
         ["external_event_id"],
-        unique=True,
+        unique=False,
     )
 
     op.create_table(
@@ -218,7 +224,7 @@ def upgrade() -> None:
         sa.Column("message", sa.Text(), nullable=True),
         sa.Column("timestamp", sa.DateTime(timezone=True), nullable=True),
         sa.Column("sequence", sa.Integer(), nullable=False, server_default=sa.text("0")),
-        sa.Column("payload", sa.JSON(), nullable=False),
+        sa.Column("payload", sa.JSON(), nullable=False, server_default=sa.text("'{}'::json")),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -230,6 +236,18 @@ def upgrade() -> None:
             ["review_records.id"],
             ondelete="CASCADE",
         ),
+    )
+    op.create_index(
+        "ix_review_commits_review_record_id",
+        "review_commits",
+        ["review_record_id"],
+        unique=False,
+    )
+    op.create_index(
+        "ux_review_commits_record_sequence",
+        "review_commits",
+        ["review_record_id", "sequence"],
+        unique=True,
     )
 
     op.create_table(
@@ -256,6 +274,19 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="SET NULL"),
     )
+    op.create_index(
+        "ix_project_members_project_id",
+        "project_members",
+        ["project_id"],
+        unique=False,
+    )
+    op.create_index(
+        "ux_project_members_project_user",
+        "project_members",
+        ["project_id", "user_id"],
+        unique=True,
+        postgresql_where=sa.text("user_id IS NOT NULL"),
+    )
 
     op.create_table(
         "audit_logs",
@@ -268,7 +299,7 @@ def upgrade() -> None:
         sa.Column("resource_name_snapshot", sa.String(length=255), nullable=True),
         sa.Column("request_path", sa.String(length=255), nullable=True),
         sa.Column("request_method", sa.String(length=16), nullable=True),
-        sa.Column("request_payload", sa.JSON(), nullable=False),
+        sa.Column("request_payload", sa.JSON(), nullable=False, server_default=sa.text("'{}'::json")),
         sa.Column("response_status", sa.Integer(), nullable=True),
         sa.Column("result", sa.String(length=32), nullable=True),
         sa.Column("error_message", sa.Text(), nullable=True),
@@ -288,10 +319,14 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_audit_logs_created_at", table_name="audit_logs")
     op.drop_table("audit_logs")
+    op.drop_index("ux_project_members_project_user", table_name="project_members")
+    op.drop_index("ix_project_members_project_id", table_name="project_members")
     op.drop_table("project_members")
+    op.drop_index("ux_review_commits_record_sequence", table_name="review_commits")
+    op.drop_index("ix_review_commits_review_record_id", table_name="review_commits")
     op.drop_table("review_commits")
     op.drop_index(
-        "ux_review_records_external_event_id",
+        "ix_review_records_external_event_id",
         table_name="review_records",
     )
     op.drop_index(
@@ -302,6 +337,7 @@ def downgrade() -> None:
     op.drop_index("ix_projects_key", table_name="projects")
     op.drop_table("projects")
     op.drop_table("notification_bots")
+    op.drop_index("ux_llm_models_single_default", table_name="llm_models")
     op.drop_table("llm_models")
     op.drop_index("ix_project_templates_code", table_name="project_templates")
     op.drop_table("project_templates")

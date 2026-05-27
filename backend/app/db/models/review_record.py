@@ -19,7 +19,7 @@ class ReviewRecord(BigIntPrimaryKeyMixin, TimestampMixin, Base):
             "event_type",
             "created_at",
         ),
-        Index("ux_review_records_external_event_id", "external_event_id", unique=True),
+        Index("ix_review_records_external_event_id", "external_event_id"),
     )
 
     project_id: Mapped[int] = mapped_column(
@@ -44,7 +44,12 @@ class ReviewRecord(BigIntPrimaryKeyMixin, TimestampMixin, Base):
         server_default=text("0"),
         nullable=False,
     )
-    commit_messages: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    commit_messages: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'::json"),
+    )
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     review_status: Mapped[str] = mapped_column(
         String(32),
@@ -69,9 +74,24 @@ class ReviewRecord(BigIntPrimaryKeyMixin, TimestampMixin, Base):
         server_default=text("0"),
         nullable=False,
     )
-    agent_trace: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
-    webhook_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
-    extra_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    agent_trace: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'::json"),
+    )
+    webhook_data: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'::json"),
+    )
+    extra_data: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'::json"),
+    )
 
     project = relationship("Project", back_populates="review_records")
     commits = relationship(

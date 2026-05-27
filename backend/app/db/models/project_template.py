@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, Boolean, ForeignKey, Index, String, Text, false, true
+from sqlalchemy import JSON, BigInteger, Boolean, ForeignKey, Index, String, Text, false, text, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, BigIntPrimaryKeyMixin, TimestampMixin
@@ -17,12 +17,18 @@ class ProjectTemplate(BigIntPrimaryKeyMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     code: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    file_extensions: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    file_extensions: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'::json"),
+    )
     review_prompt_template: Mapped[str | None] = mapped_column(Text, nullable=True)
     prompt_metadata: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         nullable=False,
         default=dict,
+        server_default=text("'{}'::json"),
     )
     is_system: Mapped[bool] = mapped_column(
         Boolean,

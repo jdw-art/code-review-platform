@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, String, Text, true
+from sqlalchemy import JSON, Boolean, DateTime, String, Text, text, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, BigIntPrimaryKeyMixin, TimestampMixin
@@ -24,6 +24,7 @@ class NotificationBot(BigIntPrimaryKeyMixin, TimestampMixin, Base):
         JSON,
         nullable=False,
         default=dict,
+        server_default=text("'{}'::json"),
     )
     is_active: Mapped[bool] = mapped_column(
         Boolean,

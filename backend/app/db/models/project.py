@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, Boolean, ForeignKey, Index, String, Text, true
+from sqlalchemy import JSON, BigInteger, Boolean, ForeignKey, Index, String, Text, text, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, BigIntPrimaryKeyMixin, TimestampMixin
@@ -47,7 +47,12 @@ class Project(BigIntPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("notification_bots.id", ondelete="SET NULL"),
         nullable=True,
     )
-    settings: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    settings: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'::json"),
+    )
     created_by: Mapped[int | None] = mapped_column(
         BigInteger,
         ForeignKey("users.id", ondelete="SET NULL"),
