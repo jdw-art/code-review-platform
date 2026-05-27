@@ -8,19 +8,18 @@ import psycopg
 import pytest
 from fastapi.testclient import TestClient
 from psycopg import sql
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
+import app.main as app_main
+from app.core.config import Settings
 from app.db.base import Base
 from app.db.models import Role, User
 from app.db.session import get_db
 from app.main import app
+from app.services.auth_service import get_refresh_session_store
+from app.services.bootstrap import bootstrap_initial_admin
 from app.security.passwords import hash_password
-
-try:
-    from app.services.auth_service import get_refresh_session_store
-except ImportError:  # pragma: no cover - used during TDD red phase before service exists.
-    get_refresh_session_store = None
 
 POSTGRES_ADMIN_DSN = "postgresql://postgres:postgres@localhost:5432/postgres"
 POSTGRES_TEST_DSN_TEMPLATE = "postgresql+psycopg://postgres:postgres@localhost:5432/{db_name}"
@@ -117,72 +116,77 @@ def refresh_session_store() -> InMemoryRefreshSessionStore:
 def client(
     test_session_factory: sessionmaker[Session],
     refresh_session_store: InMemoryRefreshSessionStore,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[TestClient, None, None]:
     def override_get_db() -> Generator[Session, None, None]:
         with test_session_factory() as session:
             yield session
 
-    app.dependency_overrides[get_db] = override_get_db
-    if get_refresh_session_store is not None:
-        app.dependency_overrides[get_refresh_session_store] = lambda: refresh_session_store
+    async def run_test_bootstrap() -> None:
+        bootstrap_initial_admin(
+            session_factory=test_session_factory,
+            settings=Settings(),
+        )
 
-    test_client = TestClient(app)
+    monkeypatch.setattr(app_main, "run_bootstrap", run_test_bootstrap)
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_refresh_session_store] = lambda: refresh_session_store
+
     try:
-        yield test_client
+        with TestClient(app) as test_client:
+            yield test_client
     finally:
-        test_client.close()
         app.dependency_overrides.clear()
 
 
 @pytest.fixture
-def bootstrap_admin(db_session: Session) -> User:
-    user = User(
-        username="admin",
-        password_hash=hash_password("jdw112233"),
-        is_active=True,
-        is_superuser=True,
-        must_change_password=True,
+def bootstrap_admin(client: TestClient, db_session: Session) -> User:
+    del client
+    settings = Settings()
+    user = db_session.scalar(
+        select(User).where(User.username == settings.bootstrap_admin_username)
     )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
+    if user is None:
+        user = User(
+            username=settings.bootstrap_admin_username,
+            password_hash=hash_password(settings.bootstrap_admin_password),
+            is_active=True,
+            is_superuser=True,
+            must_change_password=True,
+        )
+        db_session.add(user)
+        db_session.commit()
+        db_session.refresh(user)
     return user
 
 
 @pytest.fixture
-def refresh_token(client: TestClient, bootstrap_admin: User) -> str:
+def default_password_token_pair(
+    client: TestClient,
+    bootstrap_admin: User,
+) -> dict[str, object]:
     del bootstrap_admin
     response = client.post(
         "/api/v1/auth/login",
         json={"username": "admin", "password": "jdw112233"},
     )
-    return response.json()["refresh_token"]
+    return response.json()
+
+
+@pytest.fixture
+def refresh_token(default_password_token_pair: dict[str, object]) -> str:
+    return str(default_password_token_pair["refresh_token"])
 
 
 @pytest.fixture
 def authenticated_default_password_client(
     client: TestClient,
-    bootstrap_admin: User,
+    default_password_token_pair: dict[str, object],
 ) -> TestClient:
-    del bootstrap_admin
-    response = client.post(
-        "/api/v1/auth/login",
-        json={"username": "admin", "password": "jdw112233"},
+    client.headers.update(
+        {"Authorization": f"Bearer {default_password_token_pair['access_token']}"}
     )
-    client.headers.update({"Authorization": f"Bearer {response.json()['access_token']}"})
     return client
-
-
-@pytest.fixture
-def authenticated_superuser_client(
-    authenticated_default_password_client: TestClient,
-) -> TestClient:
-    return authenticated_default_password_client
-
-
-@pytest.fixture
-def authenticated_client(authenticated_default_password_client: TestClient) -> TestClient:
-    return authenticated_default_password_client
 
 
 @pytest.fixture

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from hashlib import sha256
@@ -17,6 +19,8 @@ from app.schemas.auth import ChangePasswordRequest, LoginRequest, TokenPairRespo
 from app.security.passwords import hash_password, verify_password
 from app.security.redis_store import RefreshSessionStore
 from app.security.tokens import TokenError, decode_token, issue_access_token, issue_refresh_token
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache
@@ -55,6 +59,12 @@ def _invalid_refresh_token_error() -> HTTPException:
     )
 
 
+@dataclass(frozen=True)
+class IssuedTokenPair:
+    token_pair: TokenPairResponse
+    session_jti: str
+
+
 class AuthService:
     def __init__(
         self,
@@ -75,10 +85,19 @@ class AuthService:
         if user is None or not verify_password(payload.password, user.password_hash):
             raise _invalid_credentials_error()
 
-        token_pair, _ = await self.issue_token_pair(user)
+        issued_token_pair = await self.issue_token_pair(user)
         user.last_login_at = datetime.now(UTC)
-        self.session.commit()
-        return token_pair
+        try:
+            self.session.commit()
+        except Exception:
+            self.session.rollback()
+            await self._best_effort_revoke_store_session(
+                issued_token_pair.session_jti,
+                user.id,
+                reason="login database commit failed after refresh session creation",
+            )
+            raise
+        return issued_token_pair.token_pair
 
     async def refresh(self, refresh_token: str) -> TokenPairResponse:
         claims = self._decode_refresh_token(refresh_token)
@@ -86,27 +105,34 @@ class AuthService:
         session_jti = claims["jti"]
 
         user = self._get_active_user(user_id)
-        stored_user_id = await self.refresh_store.get_user_id_for_session(session_jti)
-        if stored_user_id != user.id:
-            raise _invalid_refresh_token_error()
-
-        refresh_session = self.session.scalar(
-            select(RefreshSession).where(
-                RefreshSession.user_id == user.id,
-                RefreshSession.jti == session_jti,
-            )
+        await self._validate_store_session_owner(session_jti, user.id)
+        refresh_session = self._get_refresh_session(
+            user_id=user.id,
+            session_jti=session_jti,
+            refresh_token=refresh_token,
+            require_active=True,
         )
-        if refresh_session is None or refresh_session.revoked_at is not None:
-            raise _invalid_refresh_token_error()
-        if refresh_session.refresh_token_hash != self._hash_token(refresh_token):
-            raise _invalid_refresh_token_error()
 
-        token_pair, replacement_jti = await self.issue_token_pair(user)
+        issued_token_pair = await self.issue_token_pair(user)
         refresh_session.revoked_at = datetime.now(UTC)
-        refresh_session.replaced_by_jti = replacement_jti
-        await self.refresh_store.revoke_refresh_session(session_jti, user.id)
-        self.session.commit()
-        return token_pair
+        refresh_session.replaced_by_jti = issued_token_pair.session_jti
+        try:
+            self.session.commit()
+        except Exception:
+            self.session.rollback()
+            await self._best_effort_revoke_store_session(
+                issued_token_pair.session_jti,
+                user.id,
+                reason="refresh database commit failed after replacement session creation",
+            )
+            raise
+
+        await self._best_effort_revoke_store_session(
+            session_jti,
+            user.id,
+            reason="refresh completed and replaced prior session",
+        )
+        return issued_token_pair.token_pair
 
     async def logout(self, user: User, refresh_token: str) -> None:
         claims = self._decode_refresh_token(refresh_token)
@@ -115,36 +141,35 @@ class AuthService:
         if token_user_id != user.id:
             raise _invalid_refresh_token_error()
 
-        refresh_session = self.session.scalar(
-            select(RefreshSession).where(
-                RefreshSession.user_id == user.id,
-                RefreshSession.jti == session_jti,
-            )
+        await self._validate_store_session_owner(session_jti, user.id)
+        refresh_session = self._get_refresh_session(
+            user_id=user.id,
+            session_jti=session_jti,
+            refresh_token=refresh_token,
+            require_active=True,
         )
-        if refresh_session is not None and refresh_session.revoked_at is None:
-            refresh_session.revoked_at = datetime.now(UTC)
+        refresh_session.revoked_at = datetime.now(UTC)
+        try:
+            self.session.commit()
+        except Exception:
+            self.session.rollback()
+            raise
 
-        stored_user_id = await self.refresh_store.get_user_id_for_session(session_jti)
-        if stored_user_id is not None and stored_user_id != user.id:
-            raise _invalid_refresh_token_error()
-        if stored_user_id == user.id:
-            await self.refresh_store.revoke_refresh_session(session_jti, user.id)
-
-        self.session.commit()
+        await self._best_effort_revoke_store_session(
+            session_jti,
+            user.id,
+            reason="logout completed",
+        )
 
     async def logout_all(self, user: User) -> None:
-        active_sessions = self.session.scalars(
-            select(RefreshSession).where(
-                RefreshSession.user_id == user.id,
-                RefreshSession.revoked_at.is_(None),
-            )
-        ).all()
-        revoked_at = datetime.now(UTC)
-        for refresh_session in active_sessions:
-            refresh_session.revoked_at = revoked_at
+        self._mark_all_active_refresh_sessions_revoked(user.id)
+        try:
+            self.session.commit()
+        except Exception:
+            self.session.rollback()
+            raise
 
-        await self.refresh_store.revoke_all_user_sessions(user.id)
-        self.session.commit()
+        await self._best_effort_revoke_all_store_sessions(user.id)
 
     async def change_password(self, user: User, payload: ChangePasswordRequest) -> None:
         if not verify_password(payload.current_password, user.password_hash):
@@ -152,9 +177,16 @@ class AuthService:
 
         user.password_hash = hash_password(payload.new_password)
         user.must_change_password = False
-        await self.logout_all(user)
+        self._mark_all_active_refresh_sessions_revoked(user.id)
+        try:
+            self.session.commit()
+        except Exception:
+            self.session.rollback()
+            raise
 
-    async def issue_token_pair(self, user: User) -> tuple[TokenPairResponse, str]:
+        await self._best_effort_revoke_all_store_sessions(user.id)
+
+    async def issue_token_pair(self, user: User) -> IssuedTokenPair:
         session_jti = str(uuid4())
         now = datetime.now(UTC)
         access_token = issue_access_token(
@@ -165,11 +197,6 @@ class AuthService:
         refresh_token = issue_refresh_token(user_id=user.id, session_jti=session_jti)
         refresh_ttl_seconds = self.settings.refresh_token_ttl_days * 24 * 60 * 60
         access_ttl_seconds = self.settings.access_token_ttl_minutes * 60
-        await self.refresh_store.save_refresh_session(
-            session_jti,
-            user.id,
-            refresh_ttl_seconds,
-        )
         self.session.add(
             RefreshSession(
                 user_id=user.id,
@@ -180,15 +207,20 @@ class AuthService:
             )
         )
         self.session.flush()
-        return (
-            TokenPairResponse(
+        await self.refresh_store.save_refresh_session(
+            session_jti,
+            user.id,
+            refresh_ttl_seconds,
+        )
+        return IssuedTokenPair(
+            token_pair=TokenPairResponse(
                 access_token=access_token,
                 refresh_token=refresh_token,
                 token_type="bearer",
                 expires_in=access_ttl_seconds,
                 must_change_password=user.must_change_password,
             ),
-            session_jti,
+            session_jti=session_jti,
         )
 
     def _decode_refresh_token(self, refresh_token: str) -> dict:
@@ -211,3 +243,66 @@ class AuthService:
     @staticmethod
     def _hash_token(token: str) -> str:
         return sha256(token.encode("utf-8")).hexdigest()
+
+    def _get_refresh_session(
+        self,
+        *,
+        user_id: int,
+        session_jti: str,
+        refresh_token: str,
+        require_active: bool,
+    ) -> RefreshSession:
+        refresh_session = self.session.scalar(
+            select(RefreshSession).where(
+                RefreshSession.user_id == user_id,
+                RefreshSession.jti == session_jti,
+            )
+        )
+        if refresh_session is None:
+            raise _invalid_refresh_token_error()
+        if refresh_session.refresh_token_hash != self._hash_token(refresh_token):
+            raise _invalid_refresh_token_error()
+        if require_active and refresh_session.revoked_at is not None:
+            raise _invalid_refresh_token_error()
+        return refresh_session
+
+    def _mark_all_active_refresh_sessions_revoked(self, user_id: int) -> None:
+        active_sessions = self.session.scalars(
+            select(RefreshSession).where(
+                RefreshSession.user_id == user_id,
+                RefreshSession.revoked_at.is_(None),
+            )
+        ).all()
+        revoked_at = datetime.now(UTC)
+        for refresh_session in active_sessions:
+            refresh_session.revoked_at = revoked_at
+
+    async def _validate_store_session_owner(self, session_jti: str, user_id: int) -> None:
+        stored_user_id = await self.refresh_store.get_user_id_for_session(session_jti)
+        if stored_user_id != user_id:
+            raise _invalid_refresh_token_error()
+
+    async def _best_effort_revoke_store_session(
+        self,
+        session_jti: str,
+        user_id: int,
+        *,
+        reason: str,
+    ) -> None:
+        try:
+            await self.refresh_store.revoke_refresh_session(session_jti, user_id)
+        except Exception:
+            logger.warning(
+                "Failed to revoke refresh session in store after %s.",
+                reason,
+                exc_info=True,
+            )
+
+    async def _best_effort_revoke_all_store_sessions(self, user_id: int) -> None:
+        try:
+            await self.refresh_store.revoke_all_user_sessions(user_id)
+        except Exception:
+            logger.warning(
+                "Failed to revoke all refresh sessions in store after database commit.",
+                exc_info=True,
+            )
