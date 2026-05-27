@@ -55,6 +55,7 @@ class ProjectTemplateCreateRequest(BaseModel):
     file_extensions: list[str] = Field(min_length=1)
     review_prompt_template: str | None = None
     prompt_metadata: dict[str, Any] = Field(default_factory=dict)
+    is_active: bool = True
 
 
 class ProjectTemplateUpdateRequest(BaseModel):

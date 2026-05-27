@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import anyio
 import pytest
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
 
-from app.db.models import Project, ProjectTemplate, User
+from app.db.models import Menu, Permission, Project, ProjectTemplate, User
 from app.schemas.common import DomainConflictError
 from app.schemas.pagination import PageQuery
 from app.schemas.project import (
@@ -12,7 +13,14 @@ from app.schemas.project import (
     ProjectStatusUpdateRequest,
     ProjectUpdateRequest,
 )
+from app.schemas.project_template import ProjectTemplateCreateRequest
+from app.services.admin_console_bootstrap import (
+    ADMIN_CONSOLE_PERMISSION_SEEDS,
+    SYSTEM_PROJECT_TEMPLATE_SEEDS,
+    bootstrap_admin_console_resources,
+)
 from app.services.project_service import ProjectService
+from app.services.project_template_service import ProjectTemplateService
 
 
 @pytest.fixture
@@ -116,6 +124,60 @@ def test_create_project_persists_creator_and_template_binding(
     assert project is not None
     assert project.created_by == admin_user.id
     assert project.template_id == active_project_template.id
+
+
+def test_create_project_rejects_duplicate_key(
+    db_session,
+    admin_user,
+) -> None:
+    existing_project = Project(
+        name="Existing Project",
+        key="demo-project",
+        platform_type="gitlab",
+        default_branch="main",
+        review_enabled=True,
+        settings={},
+        created_by=admin_user.id,
+    )
+    db_session.add(existing_project)
+    db_session.commit()
+
+    service = ProjectService(session=db_session)
+    payload = ProjectCreateRequest(
+        name="Duplicate Project",
+        key="demo-project",
+        platform_type="github",
+        default_branch="main",
+    )
+
+    with pytest.raises(DomainConflictError) as exc_info:
+        anyio.run(service.create_project, admin_user, payload)
+
+    assert exc_info.value.code == "PROJECT_KEY_ALREADY_EXISTS"
+
+
+def test_create_project_translates_integrity_error_to_domain_conflict(
+    db_session,
+    admin_user,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = ProjectService(session=db_session)
+    payload = ProjectCreateRequest(
+        name="Race Project",
+        key="race-project",
+        platform_type="gitlab",
+        default_branch="main",
+    )
+
+    def raise_integrity_error() -> None:
+        raise IntegrityError("insert into projects", {}, Exception("duplicate key"))
+
+    monkeypatch.setattr(db_session, "commit", raise_integrity_error)
+
+    with pytest.raises(DomainConflictError) as exc_info:
+        anyio.run(service.create_project, admin_user, payload)
+
+    assert exc_info.value.code == "PROJECT_KEY_ALREADY_EXISTS"
 
 
 def test_update_project_rejects_switching_to_inactive_template(
@@ -225,3 +287,90 @@ def test_update_project_status_toggles_is_active(
     assert result.is_active is False
     db_session.refresh(project)
     assert project.is_active is False
+
+
+def test_create_template_translates_integrity_error_to_domain_conflict(
+    db_session,
+    admin_user,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = ProjectTemplateService(session=db_session)
+    payload = ProjectTemplateCreateRequest(
+        name="Race Template",
+        code="race-template",
+        file_extensions=[".py"],
+        prompt_metadata={},
+    )
+
+    def raise_integrity_error() -> None:
+        raise IntegrityError(
+            "insert into project_templates",
+            {},
+            Exception("duplicate key"),
+        )
+
+    monkeypatch.setattr(db_session, "commit", raise_integrity_error)
+
+    with pytest.raises(DomainConflictError) as exc_info:
+        anyio.run(service.create_template, admin_user, payload)
+
+    assert exc_info.value.code == "PROJECT_TEMPLATE_CODE_ALREADY_EXISTS"
+
+
+def test_bootstrap_admin_console_resources_is_idempotent_and_repairs_menu_hierarchy(
+    db_session,
+) -> None:
+    wrong_parent = Menu(
+        name="Wrong Parent",
+        path="/wrong-parent",
+        sort=5,
+        visible=True,
+    )
+    projects_menu = Menu(
+        name="旧项目管理",
+        path="/projects",
+        parent=wrong_parent,
+        sort=1,
+        visible=False,
+    )
+    template_menu = Menu(
+        name="旧项目模板管理",
+        path="/project-templates",
+        sort=2,
+        visible=True,
+    )
+    db_session.add_all([wrong_parent, projects_menu, template_menu])
+    db_session.commit()
+
+    bootstrap_admin_console_resources(db_session)
+    db_session.commit()
+    bootstrap_admin_console_resources(db_session)
+    db_session.commit()
+
+    db_session.refresh(projects_menu)
+    db_session.refresh(template_menu)
+
+    permission_count = len(
+        db_session.scalars(
+            select(Permission.code).where(
+                Permission.code.in_([seed["code"] for seed in ADMIN_CONSOLE_PERMISSION_SEEDS])
+            )
+        ).all()
+    )
+    template_count = len(
+        db_session.scalars(
+            select(ProjectTemplate.code).where(
+                ProjectTemplate.code.in_(
+                    [seed["code"] for seed in SYSTEM_PROJECT_TEMPLATE_SEEDS]
+                )
+            )
+        ).all()
+    )
+
+    assert projects_menu.parent_id is None
+    assert projects_menu.name == "项目管理"
+    assert projects_menu.is_system is True
+    assert template_menu.parent_id == projects_menu.id
+    assert template_menu.is_system is True
+    assert permission_count == len(ADMIN_CONSOLE_PERMISSION_SEEDS)
+    assert template_count == len(SYSTEM_PROJECT_TEMPLATE_SEEDS)

@@ -168,9 +168,6 @@ def _ensure_menus(session: Session) -> None:
         ).all()
     }
     for seed in ADMIN_CONSOLE_MENU_SEEDS:
-        if seed["path"] in menus_by_path:
-            continue
-
         parent_id = None
         parent_path = seed["parent_path"]
         if parent_path is not None:
@@ -179,20 +176,33 @@ def _ensure_menus(session: Session) -> None:
                 parent = session.scalar(select(Menu).where(Menu.path == parent_path))
             parent_id = parent.id if parent is not None else None
 
-        menu = Menu(
-            parent_id=parent_id,
-            name=seed["name"],
-            path=seed["path"],
-            component=seed["component"],
-            icon=seed["icon"],
-            sort=seed["sort"],
-            visible=seed["visible"],
-            redirect=seed["redirect"],
-            meta=seed["meta"],
-            is_system=True,
-        )
-        session.add(menu)
-        session.flush()
+        menu = menus_by_path.get(seed["path"])
+        if menu is None:
+            menu = Menu(
+                parent_id=parent_id,
+                name=seed["name"],
+                path=seed["path"],
+                component=seed["component"],
+                icon=seed["icon"],
+                sort=seed["sort"],
+                visible=seed["visible"],
+                redirect=seed["redirect"],
+                meta=seed["meta"],
+                is_system=True,
+            )
+            session.add(menu)
+            session.flush()
+            menus_by_path[menu.path] = menu
+        else:
+            menu.parent_id = parent_id
+            menu.name = seed["name"]
+            menu.component = seed["component"]
+            menu.icon = seed["icon"]
+            menu.sort = seed["sort"]
+            menu.visible = seed["visible"]
+            menu.redirect = seed["redirect"]
+            menu.meta = seed["meta"]
+            menu.is_system = True
         menus_by_path[menu.path] = menu
 
 

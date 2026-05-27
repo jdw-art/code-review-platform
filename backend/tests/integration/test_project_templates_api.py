@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import select
 
-from app.db.models import Menu, Permission, ProjectTemplate, Role, User
+from app.db.models import Menu, Permission, Project, ProjectTemplate, Role, User
 from app.security.passwords import hash_password
 from app.security.tokens import issue_access_token
 
@@ -115,6 +115,90 @@ def test_project_templates_api_supports_crud_status_and_options(
     )
     assert stored_template is not None
     assert stored_template.is_active is False
+
+
+def test_project_templates_api_allows_creating_inactive_template(
+    authenticated_superuser_client,
+) -> None:
+    response = authenticated_superuser_client.post(
+        "/api/v1/project-templates",
+        json={
+            "name": "Inactive By Default Template",
+            "code": "inactive-by-default-template",
+            "description": "Created in disabled state",
+            "file_extensions": [".py"],
+            "review_prompt_template": "review python changes",
+            "prompt_metadata": {"language": "zh-CN"},
+            "is_active": False,
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["is_active"] is False
+
+
+def test_project_templates_api_rejects_duplicate_code(
+    authenticated_superuser_client,
+) -> None:
+    first_response = authenticated_superuser_client.post(
+        "/api/v1/project-templates",
+        json={
+            "name": "Unique Template",
+            "code": "duplicate-template-code",
+            "file_extensions": [".py"],
+            "prompt_metadata": {},
+        },
+    )
+    assert first_response.status_code == 201
+
+    second_response = authenticated_superuser_client.post(
+        "/api/v1/project-templates",
+        json={
+            "name": "Duplicate Template",
+            "code": "duplicate-template-code",
+            "file_extensions": [".ts"],
+            "prompt_metadata": {},
+        },
+    )
+
+    assert second_response.status_code == 409
+    body = second_response.json()
+    assert body["code"] == "PROJECT_TEMPLATE_CODE_ALREADY_EXISTS"
+
+
+def test_project_templates_api_rejects_disabling_template_in_use(
+    authenticated_superuser_client,
+    db_session,
+) -> None:
+    template = ProjectTemplate(
+        name="Bound Template",
+        code="bound-template",
+        file_extensions=[".py"],
+        prompt_metadata={},
+        is_active=True,
+    )
+    project = Project(
+        name="Bound Project",
+        key="bound-project",
+        platform_type="gitlab",
+        default_branch="main",
+        template=template,
+        is_active=True,
+        review_enabled=True,
+        settings={},
+    )
+    db_session.add_all([template, project])
+    db_session.commit()
+
+    response = authenticated_superuser_client.patch(
+        f"/api/v1/project-templates/{template.id}/status",
+        json={"is_active": False},
+    )
+
+    assert response.status_code == 409
+    body = response.json()
+    assert body["code"] == "PROJECT_TEMPLATE_IN_USE"
 
 
 def test_project_templates_api_bootstrap_seeds_permissions_menus_and_templates(

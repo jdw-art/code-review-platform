@@ -4,6 +4,7 @@ import logging
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.models import Project, ProjectTemplate, User
@@ -89,11 +90,11 @@ class ProjectTemplateService:
             ),
             prompt_metadata=payload.prompt_metadata,
             is_system=False,
-            is_active=True,
+            is_active=payload.is_active,
             created_by=current_user.id,
         )
         self.session.add(template)
-        self.session.commit()
+        self._commit_with_template_code_conflict_guard()
         self.session.refresh(template)
         logger.info("Project template created template_id=%s code=%s.", template.id, template.code)
         return self._to_template_response(template)
@@ -116,7 +117,7 @@ class ProjectTemplateService:
         )
         template.prompt_metadata = payload.prompt_metadata
 
-        self.session.commit()
+        self._commit_with_template_code_conflict_guard()
         self.session.refresh(template)
         logger.info(
             "Project template updated template_id=%s by user_id=%s.",
@@ -202,6 +203,17 @@ class ProjectTemplateService:
         if value is None:
             return None
         return value or None
+
+    def _commit_with_template_code_conflict_guard(self) -> None:
+        """将数据库唯一键冲突稳定转换为业务 409，避免并发写入时抛出 500。"""
+        try:
+            self.session.commit()
+        except IntegrityError as exc:
+            self.session.rollback()
+            raise DomainConflictError(
+                code="PROJECT_TEMPLATE_CODE_ALREADY_EXISTS",
+                message="项目模板编码已存在。",
+            ) from exc
 
     @staticmethod
     def to_template_summary(template: ProjectTemplate) -> ProjectTemplateSummary:

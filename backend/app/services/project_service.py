@@ -4,6 +4,7 @@ import logging
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.models import Project, ProjectTemplate, User
@@ -79,7 +80,7 @@ class ProjectService:
             created_by=current_user.id,
         )
         self.session.add(project)
-        self.session.commit()
+        self._commit_with_project_key_conflict_guard()
         self.session.refresh(project)
         project = self._get_project_or_404(project.id)
         logger.info("Project created project_id=%s key=%s.", project.id, project.key)
@@ -106,7 +107,7 @@ class ProjectService:
         project.review_enabled = payload.review_enabled
         project.settings = payload.settings
 
-        self.session.commit()
+        self._commit_with_project_key_conflict_guard()
         self.session.refresh(project)
         project = self._get_project_or_404(project.id)
         logger.info("Project updated project_id=%s by user_id=%s.", project.id, current_user.id)
@@ -193,6 +194,17 @@ class ProjectService:
             code="PROJECT_KEY_ALREADY_EXISTS",
             message="项目标识已存在。",
         )
+
+    def _commit_with_project_key_conflict_guard(self) -> None:
+        """将数据库唯一键冲突稳定转换为业务 409，兜住并发写入场景。"""
+        try:
+            self.session.commit()
+        except IntegrityError as exc:
+            self.session.rollback()
+            raise DomainConflictError(
+                code="PROJECT_KEY_ALREADY_EXISTS",
+                message="项目标识已存在。",
+            ) from exc
 
     @staticmethod
     def _to_project_response(project: Project) -> ProjectResponse:
