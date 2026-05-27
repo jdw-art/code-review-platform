@@ -22,6 +22,7 @@ async def lifespan(app: FastAPI):
         logging.getLogger(__name__).warning(
             "Backend is running with insecure bootstrap auth defaults. "
             "Set AI_CODE_REVIEWER_JWT_SECRET_KEY and "
+            "AI_CODE_REVIEWER_SECRET_ENCRYPTION_KEY and "
             "AI_CODE_REVIEWER_BOOTSTRAP_ADMIN_PASSWORD before any non-local use."
         )
     await run_bootstrap()
