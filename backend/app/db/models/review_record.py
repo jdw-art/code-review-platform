@@ -19,7 +19,7 @@ class ReviewRecord(BigIntPrimaryKeyMixin, TimestampMixin, Base):
             "event_type",
             "created_at",
         ),
-        Index("ix_review_records_external_event_id", "external_event_id"),
+        Index("ux_review_records_external_event_id", "external_event_id", unique=True),
     )
 
     project_id: Mapped[int] = mapped_column(

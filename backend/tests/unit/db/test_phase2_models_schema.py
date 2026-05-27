@@ -26,6 +26,21 @@ def test_review_records_keep_template_snapshots(db_session) -> None:
     assert "review_prompt_snapshot" in columns
 
 
+def test_review_records_external_event_id_is_unique_in_schema() -> None:
+    unique_constraint_columns = {
+        tuple(column.name for column in constraint.columns)
+        for constraint in ReviewRecord.__table__.constraints
+        if getattr(constraint, "unique", False)
+    }
+    unique_index_columns = {
+        tuple(column.name for column in index.columns)
+        for index in ReviewRecord.__table__.indexes
+        if index.unique
+    }
+
+    assert ("external_event_id",) in (unique_constraint_columns | unique_index_columns)
+
+
 def test_deleting_project_relies_on_db_cascade_for_children(db_session) -> None:
     project = Project(
         name="Phase 2 Project",
