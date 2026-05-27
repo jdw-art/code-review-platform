@@ -57,5 +57,13 @@ class Project(BigIntPrimaryKeyMixin, TimestampMixin, Base):
     template = relationship("ProjectTemplate", back_populates="projects")
     default_model = relationship("LlmModel", back_populates="projects")
     default_bot = relationship("NotificationBot", back_populates="projects")
-    review_records = relationship("ReviewRecord", back_populates="project")
-    members = relationship("ProjectMember", back_populates="project")
+    review_records = relationship(
+        "ReviewRecord",
+        back_populates="project",
+        passive_deletes="all",
+    )
+    members = relationship(
+        "ProjectMember",
+        back_populates="project",
+        passive_deletes="all",
+    )
