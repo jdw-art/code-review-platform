@@ -27,8 +27,9 @@ def build_menu_tree(menu_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
         parent = nodes_by_id.get(int(parent_id))
         if parent is None:
-            roots.append(node)
-            continue
+            raise ValueError(
+                f"Menu node {node['id']} references missing parent {parent_id}."
+            )
 
         parent["children"].append(node)
 

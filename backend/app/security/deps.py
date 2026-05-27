@@ -34,10 +34,17 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired access token.",
         ) from exc
+    try:
+        user_id = int(claims["sub"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired access token.",
+        ) from exc
 
     user = session.scalar(
         select(User).where(
-            User.id == int(claims["sub"]),
+            User.id == user_id,
             User.is_active.is_(True),
         )
     )
