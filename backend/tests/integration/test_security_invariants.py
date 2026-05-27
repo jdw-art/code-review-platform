@@ -7,6 +7,20 @@ from app.core.config import Settings
 from app.db.models import Menu, Permission, Role, User
 
 
+def _flatten_menu_paths(menu_nodes: list[dict[str, object]]) -> set[str]:
+    paths: set[str] = set()
+    stack = list(menu_nodes)
+    while stack:
+        node = stack.pop()
+        path = node.get("path")
+        if isinstance(path, str):
+            paths.add(path)
+        children = node.get("children")
+        if isinstance(children, list):
+            stack.extend(children)
+    return paths
+
+
 def test_must_change_password_blocks_management_api(authenticated_default_password_client):
     response = authenticated_default_password_client.get("/api/v1/users")
 
@@ -159,3 +173,49 @@ def test_cannot_delete_system_managed_resources(
     body = response.json()
     assert body["code"] == expected_code
     assert body["request_id"]
+
+
+def test_access_context_exposes_phase2_permissions_and_menus(
+    authenticated_superuser_client,
+):
+    response = authenticated_superuser_client.get("/api/v1/me/access-context")
+
+    assert response.status_code == 200
+    body = response.json()
+    permissions = set(body["permissions"])
+    menu_paths = _flatten_menu_paths(body["menus"])
+
+    assert {
+        "dashboard:read",
+        "project:read",
+        "project:create",
+        "project:update",
+        "project:status",
+        "project_template:read",
+        "project_template:create",
+        "project_template:update",
+        "project_template:status",
+        "llm_model:read",
+        "llm_model:create",
+        "llm_model:update",
+        "llm_model:status",
+        "notification_bot:read",
+        "notification_bot:create",
+        "notification_bot:update",
+        "notification_bot:status",
+        "review_record:read",
+        "review_record:raw",
+        "review_record:import",
+        "member_analytics:read",
+        "audit_log:read",
+    }.issubset(permissions)
+    assert {
+        "/projects",
+        "/project-templates",
+        "/dashboard",
+        "/models",
+        "/notification-bots",
+        "/review-records",
+        "/member-analytics",
+        "/audit-logs",
+    }.issubset(menu_paths)
