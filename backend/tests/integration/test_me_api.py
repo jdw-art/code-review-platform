@@ -77,7 +77,8 @@ def test_me_access_context_rejects_unauthenticated_requests(client):
     response = client.get("/api/v1/me/access-context")
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Authentication required."
+    assert response.json()["code"] == "AUTHENTICATION_REQUIRED"
+    assert response.json()["message"] == "Authentication required."
 
 
 def test_me_access_context_rejects_invalid_subject_claim(client, monkeypatch):
@@ -93,4 +94,5 @@ def test_me_access_context_rejects_invalid_subject_claim(client, monkeypatch):
     response = client.get("/api/v1/me/access-context")
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid or expired access token."
+    assert response.json()["code"] == "INVALID_ACCESS_TOKEN"
+    assert response.json()["message"] == "Invalid or expired access token."

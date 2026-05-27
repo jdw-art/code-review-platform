@@ -20,6 +20,7 @@ from app.main import app
 from app.services.auth_service import get_refresh_session_store
 from app.services.bootstrap import bootstrap_initial_admin
 from app.security.passwords import hash_password
+from app.security.tokens import issue_access_token
 
 POSTGRES_ADMIN_DSN = "postgresql://postgres:postgres@localhost:5432/postgres"
 POSTGRES_TEST_DSN_TEMPLATE = "postgresql+psycopg://postgres:postgres@localhost:5432/{db_name}"
@@ -186,6 +187,32 @@ def authenticated_default_password_client(
     client.headers.update(
         {"Authorization": f"Bearer {default_password_token_pair['access_token']}"}
     )
+    return client
+
+
+@pytest.fixture
+def authenticated_superuser_client(
+    client: TestClient,
+    db_session: Session,
+) -> TestClient:
+    user = User(
+        username="root-admin",
+        password_hash=hash_password("root-admin-password"),
+        nickname="Root Admin",
+        is_active=True,
+        is_superuser=True,
+        must_change_password=False,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    access_token = issue_access_token(
+        user_id=user.id,
+        username=user.username,
+        is_superuser=user.is_superuser,
+    )
+    client.headers.update({"Authorization": f"Bearer {access_token}"})
     return client
 
 

@@ -24,7 +24,8 @@ def test_login_rejects_invalid_credentials(client):
     )
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid username or password."
+    assert response.json()["code"] == "INVALID_CREDENTIALS"
+    assert response.json()["message"] == "Invalid username or password."
 
 
 def test_refresh_rotates_refresh_token_and_revokes_previous_session(
