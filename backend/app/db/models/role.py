@@ -6,6 +6,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, BigIntPrimaryKeyMixin, TimestampMixin
 from app.db.models.associations import role_menus, role_permissions, user_roles
 
+SYSTEM_SUPER_ADMIN_ROLE_CODE = "super_admin"
+SYSTEM_SUPER_ADMIN_ROLE_NAME = "Super Admin"
+
 
 class Role(BigIntPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "roles"
