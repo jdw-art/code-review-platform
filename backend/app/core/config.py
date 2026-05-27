@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_db: int = 0
     jwt_secret_key: str = "change-me-in-env"
+    secret_encryption_key: str = "change-me-fernet-key"
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 7
     bootstrap_admin_username: str = "admin"
