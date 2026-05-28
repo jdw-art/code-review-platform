@@ -357,6 +357,13 @@ def test_bootstrap_admin_console_resources_is_idempotent_and_repairs_menu_hierar
             )
         ).all()
     )
+    permission_codes = set(
+        db_session.scalars(
+            select(Permission.code).where(
+                Permission.code.in_([seed["code"] for seed in ADMIN_CONSOLE_PERMISSION_SEEDS])
+            )
+        ).all()
+    )
     template_count = len(
         db_session.scalars(
             select(ProjectTemplate.code).where(
@@ -372,5 +379,33 @@ def test_bootstrap_admin_console_resources_is_idempotent_and_repairs_menu_hierar
     assert projects_menu.is_system is True
     assert template_menu.parent_id == projects_menu.id
     assert template_menu.is_system is True
+    system_menu = db_session.scalar(select(Menu).where(Menu.path == "/system"))
+    users_menu = db_session.scalar(select(Menu).where(Menu.path == "/system/users"))
+    roles_menu = db_session.scalar(select(Menu).where(Menu.path == "/system/roles"))
+
+    assert system_menu is not None
+    assert system_menu.parent_id is None
+    assert users_menu is not None
+    assert users_menu.parent_id == system_menu.id
+    assert roles_menu is not None
+    assert roles_menu.parent_id == system_menu.id
     assert permission_count == len(ADMIN_CONSOLE_PERMISSION_SEEDS)
     assert template_count == len(SYSTEM_PROJECT_TEMPLATE_SEEDS)
+    assert {
+        "user:read",
+        "user:create",
+        "user:update",
+        "user:delete",
+        "user:status",
+        "user:reset-password",
+        "user:assign-role",
+        "role:read",
+        "role:create",
+        "role:update",
+        "role:delete",
+        "role:assign",
+        "menu:read",
+        "menu:create",
+        "menu:update",
+        "menu:delete",
+    }.issubset(permission_codes)

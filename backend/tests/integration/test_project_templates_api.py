@@ -231,8 +231,26 @@ def test_project_templates_api_bootstrap_seeds_permissions_menus_and_templates(
         "project_template:create",
         "project_template:update",
         "project_template:status",
+        "user:read",
+        "user:create",
+        "user:update",
+        "user:delete",
+        "user:status",
+        "user:reset-password",
+        "user:assign-role",
+        "role:read",
+        "role:create",
+        "role:update",
+        "role:delete",
+        "role:assign",
+        "menu:read",
+        "menu:create",
+        "menu:update",
+        "menu:delete",
     }.issubset(permission_codes)
-    assert {"项目管理", "项目模板管理"}.issubset(menu_names)
+    assert {"项目管理", "项目模板管理", "权限管理", "用户管理", "角色管理"}.issubset(
+        menu_names
+    )
     assert {
         "java-default",
         "frontend-vue-ts",
