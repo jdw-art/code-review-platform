@@ -1,7 +1,7 @@
 .DS_Store
 venv/
 .venv/
-test/
+/test/
 .idea/
 
 log/*
@@ -17,3 +17,6 @@ __pycache__/
 .claude/
 openspec/
 .worktrees/
+frontend/node_modules/
+frontend/dist/
+frontend/.cache/
