@@ -75,12 +75,8 @@ def test_admin_can_update_role_and_assign_permissions_and_menus(
     db_session,
 ):
     role = Role(name="Reviewer", code="reviewer", description="Reviews code")
-    permission = Permission(
-        name="User Create",
-        code="user:create",
-        resource="user",
-        action="create",
-    )
+    permission = db_session.scalar(select(Permission).where(Permission.code == "user:create"))
+    assert permission is not None
     root_menu = Menu(
         name="System",
         path="/system",
@@ -94,7 +90,7 @@ def test_admin_can_update_role_and_assign_permissions_and_menus(
         sort=20,
         visible=True,
     )
-    db_session.add_all([role, permission, root_menu, child_menu])
+    db_session.add_all([role, root_menu, child_menu])
     db_session.commit()
     db_session.refresh(role)
     db_session.refresh(permission)
@@ -115,10 +111,10 @@ def test_admin_can_update_role_and_assign_permissions_and_menus(
     assert permission_response.status_code == 200
     assigned_permission = permission_response.json()["permissions"][0]
     assert assigned_permission["id"] == permission.id
-    assert assigned_permission["name"] == "User Create"
-    assert assigned_permission["code"] == "user:create"
-    assert assigned_permission["resource"] == "user"
-    assert assigned_permission["action"] == "create"
+    assert assigned_permission["name"] == permission.name
+    assert assigned_permission["code"] == permission.code
+    assert assigned_permission["resource"] == permission.resource
+    assert assigned_permission["action"] == permission.action
 
     menu_response = authenticated_superuser_client.put(
         f"/api/v1/roles/{role.id}/menus",

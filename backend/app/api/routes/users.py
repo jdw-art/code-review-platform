@@ -144,6 +144,30 @@ async def reset_user_password(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="删除用户",
+    description="删除指定后台用户，并撤销其现有 refresh token 会话。不能删除自己，也不能删除最后一个启用中的超级管理员。需要 `user:delete` 权限。",
+)
+async def delete_user(
+    request: Request,
+    user_id: int,
+    current_user: User = Depends(require_permission("user:delete")),
+    service: UserService = Depends(),
+) -> Response:
+    """删除指定用户账号。"""
+    audit_context = AuditLogService.build_context(
+        request=request,
+        current_user=current_user,
+        action="user.delete",
+        resource_type="user",
+        response_status=status.HTTP_204_NO_CONTENT,
+    )
+    await service.delete_user(current_user, user_id, audit_context)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.put(
     "/{user_id}/roles",
     response_model=UserResponse,

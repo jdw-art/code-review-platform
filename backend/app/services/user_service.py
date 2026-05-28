@@ -235,6 +235,43 @@ class UserService:
         logger.info("Roles assigned to target_user_id=%s.", user.id)
         return self._to_user_response(user)
 
+    async def delete_user(
+        self,
+        current_user: User,
+        user_id: int,
+        audit_context: AuditActionContext | None = None,
+    ) -> None:
+        """删除指定用户，并在提交后尽力撤销其 refresh token 会话。"""
+        user = self._get_user_or_404(user_id)
+        self._ensure_delete_allowed(current_user=current_user, target_user=user)
+
+        deleted_user_id = user.id
+        deleted_username = user.username
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=user.id,
+                    resource_name=user.username,
+                    response_status=status.HTTP_204_NO_CONTENT,
+                ),
+            )
+        self.session.delete(user)
+        self.session.commit()
+        try:
+            await self.refresh_store.revoke_all_user_sessions(deleted_user_id)
+        except Exception:
+            logger.warning(
+                "Failed to revoke refresh sessions after deleting user_id=%s.",
+                deleted_user_id,
+                exc_info=True,
+            )
+        logger.info(
+            "User deleted target_user_id=%s username=%s by user_id=%s.",
+            deleted_user_id,
+            deleted_username,
+            current_user.id,
+        )
 
     def _get_user_or_404(self, user_id: int) -> User:
         """读取单个用户，不存在则抛出 404。"""
@@ -309,6 +346,19 @@ class UserService:
                     code="SELF_DEMOTE_FORBIDDEN",
                     message="You cannot remove your own superuser status.",
                 )
+
+    def _ensure_delete_allowed(self, *, current_user: User, target_user: User) -> None:
+        """校验删除操作是否触发自删或最后超级管理员保护。"""
+        if target_user.id == current_user.id:
+            raise DomainConflictError(
+                code="SELF_DELETE_FORBIDDEN",
+                message="You cannot delete your own account.",
+            )
+        if target_user.is_superuser and target_user.is_active and self._count_active_superusers() <= 1:
+            raise DomainConflictError(
+                code="LAST_SUPERUSER_DELETE_FORBIDDEN",
+                message="The last superuser cannot be deleted.",
+            )
 
     def _count_active_superusers(self) -> int:
         """统计当前仍处于启用状态的超级管理员数量。"""

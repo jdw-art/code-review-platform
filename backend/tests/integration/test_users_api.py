@@ -83,6 +83,36 @@ def authenticated_superuser_client(client, db_session):
     return client
 
 
+@pytest.fixture
+def user_delete_operator_client(client, db_session):
+    permission = db_session.scalar(select(Permission).where(Permission.code == "user:delete"))
+    assert permission is not None
+    role = Role(
+        name="User Operator",
+        code="user-operator",
+        permissions=[permission],
+    )
+    user = User(
+        username="user-delete-operator",
+        password_hash=hash_password("operator-password"),
+        is_active=True,
+        is_superuser=False,
+        must_change_password=False,
+        roles=[role],
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    access_token = issue_access_token(
+        user_id=user.id,
+        username=user.username,
+        is_superuser=user.is_superuser,
+    )
+    client.headers.update({"Authorization": f"Bearer {access_token}"})
+    return client
+
+
 def test_admin_can_create_user(authenticated_superuser_client, db_session):
     response = authenticated_superuser_client.post(
         "/api/v1/users",
@@ -269,6 +299,94 @@ def test_admin_can_assign_roles(
     assert [role.id for role in managed_user.roles] == [created_role["id"]]
 
 
+def test_admin_can_delete_user_and_revoke_refresh_sessions(
+    authenticated_superuser_client,
+    managed_user,
+    refresh_session_store,
+    test_session_factory,
+    db_session,
+):
+    first_login_response = authenticated_superuser_client.post(
+        "/api/v1/auth/login",
+        json={"username": "managed-user", "password": "managed-password"},
+    )
+    second_login_response = authenticated_superuser_client.post(
+        "/api/v1/auth/login",
+        json={"username": "managed-user", "password": "managed-password"},
+    )
+    refresh_tokens = [
+        str(first_login_response.json()["refresh_token"]),
+        str(second_login_response.json()["refresh_token"]),
+    ]
+    refresh_claims = [
+        decode_token(refresh_token, expected_token_type="refresh")
+        for refresh_token in refresh_tokens
+    ]
+
+    assert first_login_response.status_code == 200
+    assert second_login_response.status_code == 200
+    assert refresh_session_store.user_index[managed_user.id] == {
+        claims["jti"] for claims in refresh_claims
+    }
+
+    response = authenticated_superuser_client.delete(f"/api/v1/users/{managed_user.id}")
+
+    assert response.status_code == 204
+    assert managed_user.id not in refresh_session_store.user_index
+    assert db_session.scalar(select(User).where(User.id == managed_user.id)) is None
+
+    for refresh_token in refresh_tokens:
+        replay_response = authenticated_superuser_client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": refresh_token},
+        )
+        assert replay_response.status_code == 401
+
+    with test_session_factory() as session:
+        stored_sessions = session.scalars(
+            select(RefreshSession).where(
+                RefreshSession.jti.in_([claims["jti"] for claims in refresh_claims])
+            )
+        ).all()
+        assert stored_sessions == []
+
+
+def test_admin_cannot_delete_self(authenticated_superuser_client, db_session):
+    current_user = db_session.scalar(select(User).where(User.username == "root-admin"))
+    assert current_user is not None
+
+    response = authenticated_superuser_client.delete(f"/api/v1/users/{current_user.id}")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "SELF_DELETE_FORBIDDEN"
+    assert response.json()["message"] == "You cannot delete your own account."
+
+
+def test_operator_cannot_delete_last_active_superuser(
+    user_delete_operator_client,
+    bootstrap_admin,
+    db_session,
+):
+    bootstrap_admin.is_active = False
+    target_superuser = User(
+        username="sole-superuser",
+        password_hash=hash_password("sole-superuser-password"),
+        is_active=True,
+        is_superuser=True,
+        must_change_password=False,
+    )
+    db_session.add(target_superuser)
+    db_session.commit()
+    db_session.refresh(target_superuser)
+
+    response = user_delete_operator_client.delete(f"/api/v1/users/{target_superuser.id}")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "LAST_SUPERUSER_DELETE_FORBIDDEN"
+    assert response.json()["message"] == "The last superuser cannot be deleted."
+    assert db_session.scalar(select(User).where(User.id == target_superuser.id)) is not None
+
+
 @pytest.mark.parametrize(
     ("method", "path", "payload"),
     [
@@ -279,6 +397,7 @@ def test_admin_can_assign_roles(
         ("patch", "/api/v1/users/999999/status", {"is_active": False}),
         ("post", "/api/v1/users/999999/reset-password", {"new_password": "new-password-123"}),
         ("put", "/api/v1/users/999999/roles", {"role_ids": []}),
+        ("delete", "/api/v1/users/999999", None),
     ],
 )
 def test_user_management_endpoints_require_permissions(
