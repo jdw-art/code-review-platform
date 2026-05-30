@@ -1,5 +1,7 @@
 from pathlib import Path
+from typing import Annotated
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,6 +25,11 @@ class Settings(BaseSettings):
     redis_host: str = "localhost"
     redis_port: int = 6379
     redis_db: int = 0
+    review_queue_name: Annotated[str, Field(min_length=1)] = "review:jobs"
+    review_lock_prefix: Annotated[str, Field(min_length=1)] = "review:lock"
+    review_max_retries: Annotated[int, Field(ge=0)] = 3
+    review_lock_ttl_seconds: Annotated[int, Field(gt=0)] = 1800
+    report_crontab_expression: str = "0 18 * * 1-5"
     jwt_secret_key: str = "change-me-in-env"
     secret_encryption_key: str = DEFAULT_SECRET_ENCRYPTION_KEY
     access_token_ttl_minutes: int = 15
