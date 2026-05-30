@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 class ReviewQueueRedisProtocol(Protocol):
     async def rpush(self, key: str, value: str) -> int: ...
+    async def lrem(self, key: str, count: int, value: str) -> int: ...
     async def set(
         self,
         key: str,
@@ -57,13 +58,19 @@ class ReviewQueueService:
         review_record_id: int,
         platform_type: Literal["gitlab", "github"],
         attempt: int = 1,
-    ) -> None:
+    ) -> str:
         message = ReviewQueueMessage(
             review_record_id=review_record_id,
             platform_type=platform_type,
             attempt=attempt,
         )
-        await self.redis.rpush(self.queue_name, message.model_dump_json())
+        raw_message = message.model_dump_json()
+        await self.redis.rpush(self.queue_name, raw_message)
+        return raw_message
+
+    async def remove_message(self, raw_message: str) -> bool:
+        removed = await self.redis.lrem(self.queue_name, 1, raw_message)
+        return removed > 0
 
     async def acquire_lock(self, *, review_record_id: int, ttl_seconds: int) -> bool:
         result = await self.redis.set(

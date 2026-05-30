@@ -17,6 +17,22 @@ class FakeRedis:
         items.append(value)
         return len(items)
 
+    async def lrem(self, key: str, count: int, value: str) -> int:
+        items = self.values.get(key, [])
+        removed = 0
+        retained: list[str] = []
+        remaining = abs(count) if count != 0 else None
+        for item in items:
+            should_remove = item == value and (remaining is None or remaining > 0)
+            if should_remove:
+                removed += 1
+                if remaining is not None:
+                    remaining -= 1
+                continue
+            retained.append(item)
+        self.values[key] = retained
+        return removed
+
     async def set(
         self,
         key: str,
@@ -42,11 +58,23 @@ def fake_redis() -> FakeRedis:
 async def test_queue_service_pushes_minimal_message(fake_redis: FakeRedis) -> None:
     service = ReviewQueueService(redis_client=fake_redis, queue_name="review:jobs")
 
-    await service.enqueue(review_record_id=101, platform_type="gitlab", attempt=1)
+    message = await service.enqueue(review_record_id=101, platform_type="gitlab", attempt=1)
 
     assert fake_redis.values["review:jobs"] == [
         '{"review_record_id":101,"platform_type":"gitlab","attempt":1}'
     ]
+    assert message == '{"review_record_id":101,"platform_type":"gitlab","attempt":1}'
+
+
+@pytest.mark.anyio
+async def test_queue_service_can_remove_enqueued_message(fake_redis: FakeRedis) -> None:
+    service = ReviewQueueService(redis_client=fake_redis, queue_name="review:jobs")
+    message = await service.enqueue(review_record_id=202, platform_type="github", attempt=1)
+
+    removed = await service.remove_message(message)
+
+    assert removed is True
+    assert fake_redis.values["review:jobs"] == []
 
 
 @pytest.mark.anyio
