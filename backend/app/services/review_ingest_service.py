@@ -46,6 +46,7 @@ class ReviewIngestService:
         review_record = ReviewRecord(
             project_id=project.id,
             event_type=request.event_type,
+            platform_type=project.platform_type,
             external_event_id=self._get_optional_text(payload.get("external_event_id")),
             project_name_snapshot=project.name,
             template_id_snapshot=template.id if template is not None else None,

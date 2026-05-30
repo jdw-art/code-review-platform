@@ -51,6 +51,12 @@ class ReviewRecordListItemResponse(BaseModel):
     branch: str | None = None
     source_branch: str | None = None
     target_branch: str | None = None
+    platform_type: str
+    delivery_status: str
+    error_message: str | None = None
+    retry_count: int
+    reviewed_at: datetime | None = None
+    failed_at: datetime | None = None
     commit_count: int
     commit_messages: list[str] = Field(default_factory=list)
     score: float | None = None
