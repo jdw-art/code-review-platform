@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
+from app.db.models import ReviewRecord
 from app.integrations.github import GitHubIntegrationAdapter
 
 
@@ -135,3 +138,134 @@ def test_github_adapter_rejects_unsupported_event() -> None:
                 "X-GitHub-Delivery": "delivery-issues-001",
             },
         )
+
+
+class _FakeResponse:
+    def __init__(self, payload) -> None:
+        self.payload = payload
+
+    def read(self) -> bytes:
+        return json.dumps(self.payload).encode("utf-8")
+
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        del exc_type, exc, tb
+
+
+def test_github_adapter_fetches_pull_request_files(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(request, timeout: int = 10):
+        del timeout
+        captured["url"] = request.full_url
+        captured["auth"] = request.headers.get("Authorization")
+        return _FakeResponse(
+            [
+                {
+                    "filename": "worker.py",
+                    "patch": "+pass",
+                    "status": "modified",
+                    "additions": 1,
+                    "deletions": 0,
+                }
+            ]
+        )
+
+    monkeypatch.setattr("app.integrations.github.urlopen", fake_urlopen)
+    adapter = GitHubIntegrationAdapter(access_token="gh-token")
+    record = ReviewRecord(
+        event_type="pull_request",
+        platform_type="github",
+        external_pull_request_id="18",
+        webhook_data={"repository": {"full_name": "acme/review-bot"}},
+        url="https://github.com/acme/review-bot/pull/18",
+    )
+
+    files = adapter.fetch_changes(record)
+
+    assert files == [
+        {
+            "old_path": "worker.py",
+            "new_path": "worker.py",
+            "diff": "+pass",
+            "status": "modified",
+            "additions": 1,
+            "deletions": 0,
+        }
+    ]
+    assert captured["auth"] == "token gh-token"
+    assert captured["url"] == "https://api.github.com/repos/acme/review-bot/pulls/18/files"
+
+
+def test_github_adapter_fetches_pull_request_commits(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_urlopen(request, timeout: int = 10):
+        del request, timeout
+        return _FakeResponse(
+            [
+                {
+                    "sha": "abc123",
+                    "html_url": "https://github.com/acme/review-bot/commit/abc123",
+                    "commit": {
+                        "message": "feat: add worker\n\nbody",
+                        "author": {
+                            "name": "alice",
+                            "email": "alice@example.com",
+                            "date": "2026-05-31T08:00:00Z",
+                        },
+                    },
+                }
+            ]
+        )
+
+    monkeypatch.setattr("app.integrations.github.urlopen", fake_urlopen)
+    adapter = GitHubIntegrationAdapter(access_token="gh-token")
+    record = ReviewRecord(
+        event_type="pull_request",
+        platform_type="github",
+        external_pull_request_id="18",
+        webhook_data={"repository": {"full_name": "acme/review-bot"}},
+        url="https://github.com/acme/review-bot/pull/18",
+    )
+
+    commits = adapter.fetch_commits(record)
+
+    assert commits == [
+        {
+            "id": "abc123",
+            "title": "feat: add worker",
+            "message": "feat: add worker\n\nbody",
+            "author_name": "alice",
+            "author_email": "alice@example.com",
+            "created_at": "2026-05-31T08:00:00Z",
+            "web_url": "https://github.com/acme/review-bot/commit/abc123",
+        }
+    ]
+
+
+def test_github_adapter_posts_pull_request_comment(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(request, timeout: int = 10):
+        del timeout
+        captured["url"] = request.full_url
+        captured["method"] = request.get_method()
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        return _FakeResponse({"id": 1})
+
+    monkeypatch.setattr("app.integrations.github.urlopen", fake_urlopen)
+    adapter = GitHubIntegrationAdapter(access_token="gh-token")
+    record = ReviewRecord(
+        event_type="pull_request",
+        platform_type="github",
+        external_pull_request_id="18",
+        webhook_data={"repository": {"full_name": "acme/review-bot"}},
+        url="https://github.com/acme/review-bot/pull/18",
+    )
+
+    adapter.publish_review_comment(record=record, review_result="Auto Review Result")
+
+    assert captured["method"] == "POST"
+    assert captured["body"] == {"body": "Auto Review Result"}
+    assert captured["url"] == "https://api.github.com/repos/acme/review-bot/issues/18/comments"

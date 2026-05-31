@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
+from app.db.models import ReviewRecord
 from app.integrations.gitlab import GitLabIntegrationAdapter
 
 
@@ -125,3 +128,103 @@ def test_gitlab_adapter_rejects_unsupported_event() -> None:
             payload,
             headers={"X-Gitlab-Event": "Tag Push Hook"},
         )
+
+
+class _FakeResponse:
+    def __init__(self, payload) -> None:
+        self.payload = payload
+
+    def read(self) -> bytes:
+        return json.dumps(self.payload).encode("utf-8")
+
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        del exc_type, exc, tb
+
+
+def test_gitlab_adapter_fetches_merge_request_changes(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(request, timeout: int = 10):
+        del timeout
+        captured["url"] = request.full_url
+        captured["token"] = request.headers.get("Private-token")
+        return _FakeResponse({"changes": [{"new_path": "worker.py", "diff": "+pass"}]})
+
+    monkeypatch.setattr("app.integrations.gitlab.urlopen", fake_urlopen)
+    adapter = GitLabIntegrationAdapter(access_token="token-1", base_url="https://gitlab.example.com")
+    record = ReviewRecord(
+        event_type="merge_request",
+        platform_type="gitlab",
+        external_project_id="123",
+        external_merge_request_id="7",
+        webhook_data={},
+    )
+
+    changes = adapter.fetch_changes(record)
+
+    assert changes == [{"new_path": "worker.py", "diff": "+pass"}]
+    assert captured["token"] == "token-1"
+    assert captured["url"] == (
+        "https://gitlab.example.com/api/v4/projects/123/merge_requests/7/changes?access_raw_diffs=true"
+    )
+
+
+def test_gitlab_adapter_fetches_push_commits_from_payload() -> None:
+    adapter = GitLabIntegrationAdapter(access_token="token-1", base_url="https://gitlab.example.com")
+    record = ReviewRecord(
+        event_type="push",
+        platform_type="gitlab",
+        webhook_data={
+            "commits": [
+                {
+                    "id": "abc123",
+                    "message": "feat: add worker",
+                    "timestamp": "2026-05-31T08:00:00Z",
+                    "url": "https://gitlab.example.com/commit/abc123",
+                    "author": {"name": "alice"},
+                }
+            ]
+        },
+    )
+
+    commits = adapter.fetch_commits(record)
+
+    assert commits == [
+        {
+            "id": "abc123",
+            "message": "feat: add worker",
+            "author": "alice",
+            "timestamp": "2026-05-31T08:00:00Z",
+            "url": "https://gitlab.example.com/commit/abc123",
+        }
+    ]
+
+
+def test_gitlab_adapter_posts_merge_request_comment(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(request, timeout: int = 10):
+        del timeout
+        captured["url"] = request.full_url
+        captured["method"] = request.get_method()
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        return _FakeResponse({"id": 1})
+
+    monkeypatch.setattr("app.integrations.gitlab.urlopen", fake_urlopen)
+    adapter = GitLabIntegrationAdapter(access_token="token-1", base_url="https://gitlab.example.com")
+    record = ReviewRecord(
+        event_type="merge_request",
+        platform_type="gitlab",
+        external_project_id="123",
+        external_merge_request_id="7",
+        webhook_data={},
+    )
+
+    adapter.publish_review_comment(record=record, review_result="Auto Review Result")
+
+    assert captured["method"] == "POST"
+    assert captured["body"] == {"body": "Auto Review Result"}
+    assert captured["url"] == "https://gitlab.example.com/api/v4/projects/123/merge_requests/7/notes"

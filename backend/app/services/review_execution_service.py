@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.db.models import ReviewCommit, ReviewRecord
 from app.db.session import get_db
+from app.services.review_comment_service import ReviewCommentService
+from app.services.review_notification_service import ReviewNotificationService
 
 
 class ReviewExecutionService:
@@ -27,8 +29,8 @@ class ReviewExecutionService:
         self.session = session
         self.adapter_registry = adapter_registry
         self.reviewer = reviewer
-        self.comment_service = comment_service
-        self.notification_service = notification_service
+        self.comment_service = comment_service or ReviewCommentService()
+        self.notification_service = notification_service or ReviewNotificationService()
 
     def execute(self, *, review_record_id: int, attempt: int) -> None:
         record = self._get_record_or_raise(review_record_id)
@@ -149,15 +151,19 @@ class ReviewExecutionService:
     def _deliver_review_result(self, record: ReviewRecord, review_text: str) -> None:
         delivery_failures: list[str] = []
 
-        if self.comment_service is not None and hasattr(self.comment_service, "publish"):
+        if self.comment_service is not None and hasattr(self.comment_service, "deliver"):
             try:
-                self.comment_service.publish(record, review_text)
+                self.comment_service.deliver(
+                    adapter=self.adapter_registry.get(record.platform_type),
+                    record=record,
+                    review_result=review_text,
+                )
             except Exception:
                 delivery_failures.append("comment")
 
-        if self.notification_service is not None and hasattr(self.notification_service, "notify"):
+        if self.notification_service is not None and hasattr(self.notification_service, "deliver"):
             try:
-                self.notification_service.notify(record)
+                self.notification_service.deliver(record=record)
             except Exception:
                 delivery_failures.append("notify")
 

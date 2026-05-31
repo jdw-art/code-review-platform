@@ -5,15 +5,18 @@ from collections.abc import Sequence
 import pytest
 from sqlalchemy import select
 
-from app.db.models import Project, ProjectTemplate, ReviewCommit, ReviewRecord, User
+from app.db.models import NotificationBot, Project, ProjectTemplate, ReviewCommit, ReviewRecord, User
 from app.security.passwords import hash_password
+from app.services.review_comment_service import ReviewCommentService
 from app.services.review_execution_service import ReviewExecutionService
+from app.services.review_notification_service import ReviewNotificationService
 
 
 class FakeAdapter:
     def __init__(self) -> None:
         self.changes_by_record_id: dict[int, list[dict[str, object]]] = {}
         self.commits_by_record_id: dict[int, list[dict[str, object]]] = {}
+        self.published_comments: list[dict[str, object]] = []
 
     def register_changes(self, record_id: int, changes: Sequence[dict[str, object]]) -> None:
         self.changes_by_record_id[record_id] = list(changes)
@@ -26,6 +29,14 @@ class FakeAdapter:
 
     def fetch_commits(self, record: ReviewRecord) -> list[dict[str, object]]:
         return list(self.commits_by_record_id.get(record.id, []))
+
+    def publish_review_comment(self, *, record: ReviewRecord, review_result: str) -> None:
+        self.published_comments.append(
+            {
+                "record_id": record.id,
+                "review_result": review_result,
+            }
+        )
 
 
 class FakeAdapterRegistry:
@@ -86,23 +97,83 @@ class FakeCommentService:
     def __init__(self) -> None:
         self.published: list[int] = []
 
-    def publish(self, record: ReviewRecord, review_text: str) -> None:
-        del review_text
+    def deliver(self, *, adapter: FakeAdapter, record: ReviewRecord, review_result: str) -> None:
+        adapter.publish_review_comment(
+            record=record,
+            review_result=f"Auto Review Result: \n{review_result}",
+        )
         self.published.append(record.id)
 
 
 class ExplodingCommentService(FakeCommentService):
-    def publish(self, record: ReviewRecord, review_text: str) -> None:
-        del record, review_text
+    def deliver(self, *, adapter: FakeAdapter, record: ReviewRecord, review_result: str) -> None:
+        del adapter, record, review_result
         raise RuntimeError("comment boom")
 
 
 class FakeNotificationService:
     def __init__(self) -> None:
         self.sent: list[int] = []
+        self.fallback_sent: list[int] = []
 
-    def notify(self, record: ReviewRecord) -> None:
+    def deliver(self, *, record: ReviewRecord) -> None:
         self.sent.append(record.id)
+
+
+class ExplodingNotificationService(FakeNotificationService):
+    def deliver(self, *, record: ReviewRecord) -> None:
+        del record
+        raise RuntimeError("notify boom")
+
+
+class FakeNotificationSender:
+    def __init__(self) -> None:
+        self.bot_messages: list[dict[str, object]] = []
+        self.fallback_messages: list[dict[str, object]] = []
+
+    def send(
+        self,
+        *,
+        bot_type: str,
+        webhook_url: str,
+        secret: str | None,
+        content: str,
+        title: str,
+        project_name: str | None,
+        url_slug: str | None,
+        webhook_data: dict[str, object],
+    ) -> None:
+        self.bot_messages.append(
+            {
+                "bot_type": bot_type,
+                "webhook_url": webhook_url,
+                "secret": secret,
+                "content": content,
+                "title": title,
+                "project_name": project_name,
+                "url_slug": url_slug,
+                "webhook_data": webhook_data,
+            }
+        )
+
+    def send_env_fallback(
+        self,
+        *,
+        content: str,
+        title: str,
+        project_name: str | None,
+        url_slug: str | None,
+        webhook_data: dict[str, object],
+    ) -> None:
+        self.fallback_messages.append(
+            {
+                "content": content,
+                "title": title,
+                "project_name": project_name,
+                "url_slug": url_slug,
+                "webhook_data": webhook_data,
+            }
+        )
 
 
 def _create_project_with_template(db_session) -> Project:
@@ -168,6 +239,21 @@ def _create_queued_review_record(db_session, *, platform_type: str = "gitlab") -
     db_session.commit()
     db_session.refresh(record)
     return record
+
+
+def _attach_default_bot(db_session, project: Project) -> NotificationBot:
+    bot = NotificationBot(
+        name="Review Bot",
+        bot_type="dingtalk",
+        webhook_url="https://oapi.dingtalk.com/robot/send?access_token=demo",
+        is_active=True,
+    )
+    db_session.add(bot)
+    db_session.flush()
+    project.default_bot = bot
+    db_session.commit()
+    db_session.refresh(project)
+    return bot
 
 
 @pytest.fixture
@@ -252,6 +338,12 @@ def test_execution_service_marks_reviewed_after_success(
     assert record.agent_trace["status"] == "reviewed"
     assert fake_comment_service.published == [record.id]
     assert fake_notification_service.sent == [record.id]
+    assert adapter.published_comments == [
+        {
+            "record_id": record.id,
+            "review_result": "Auto Review Result: \n总结\n总分：95分",
+        }
+    ]
 
 
 def test_execution_service_marks_skipped_when_no_supported_files(
@@ -423,6 +515,72 @@ def test_execution_service_keeps_reviewed_when_comment_delivery_fails(
     assert record.error_message is None
     assert record.agent_trace["delivery_failures"] == ["comment"]
     assert fake_notification_service.sent == [record.id]
+
+
+def test_execution_service_marks_partial_failure_when_notification_fails(
+    db_session,
+    fake_adapter_registry,
+    fake_reviewer,
+    fake_comment_service,
+) -> None:
+    record = _create_queued_review_record(db_session, platform_type="gitlab")
+    adapter = fake_adapter_registry.get("gitlab")
+    adapter.register_changes(
+        record.id,
+        [{"new_path": "worker.py", "diff": "+pass", "additions": 1, "deletions": 0}],
+    )
+    adapter.register_commits(
+        record.id,
+        [{"id": "abc123", "message": "feat: first", "author": "alice"}],
+    )
+
+    service = ReviewExecutionService(
+        session=db_session,
+        adapter_registry=fake_adapter_registry,
+        reviewer=fake_reviewer,
+        comment_service=fake_comment_service,
+        notification_service=ExplodingNotificationService(),
+    )
+
+    service.execute(review_record_id=record.id, attempt=1)
+
+    db_session.refresh(record)
+    assert record.review_status == "reviewed"
+    assert record.delivery_status == "notify_failed"
+    assert record.retry_count == 0
+    assert record.agent_trace["delivery_failures"] == ["notify"]
+
+
+def test_execution_service_marks_partial_failure_when_comment_and_notification_fail(
+    db_session,
+    fake_adapter_registry,
+    fake_reviewer,
+) -> None:
+    record = _create_queued_review_record(db_session, platform_type="gitlab")
+    adapter = fake_adapter_registry.get("gitlab")
+    adapter.register_changes(
+        record.id,
+        [{"new_path": "worker.py", "diff": "+pass", "additions": 1, "deletions": 0}],
+    )
+    adapter.register_commits(
+        record.id,
+        [{"id": "abc123", "message": "feat: first", "author": "alice"}],
+    )
+
+    service = ReviewExecutionService(
+        session=db_session,
+        adapter_registry=fake_adapter_registry,
+        reviewer=fake_reviewer,
+        comment_service=ExplodingCommentService(),
+        notification_service=ExplodingNotificationService(),
+    )
+
+    service.execute(review_record_id=record.id, attempt=1)
+
+    db_session.refresh(record)
+    assert record.review_status == "reviewed"
+    assert record.delivery_status == "partial_failed"
+    assert record.agent_trace["delivery_failures"] == ["comment", "notify"]
 
 
 def test_execution_service_clears_previous_review_state_before_failure(
@@ -693,3 +851,49 @@ def test_execution_service_ignores_deleted_change_variants(
     assert record.additions == 0
     assert record.deletions == 0
     assert fake_reviewer.calls == []
+
+
+def test_review_comment_service_calls_adapter_publish_review_comment(db_session) -> None:
+    record = _create_queued_review_record(db_session, platform_type="gitlab")
+    adapter = FakeAdapter()
+    service = ReviewCommentService()
+
+    service.deliver(
+        adapter=adapter,
+        record=record,
+        review_result="总结\n总分：95分",
+    )
+
+    assert adapter.published_comments == [
+        {
+            "record_id": record.id,
+            "review_result": "Auto Review Result: \n总结\n总分：95分",
+        }
+    ]
+
+
+def test_review_notification_service_prefers_project_default_bot(db_session) -> None:
+    record = _create_queued_review_record(db_session, platform_type="gitlab")
+    project = db_session.get(Project, record.project_id)
+    assert project is not None
+    bot = _attach_default_bot(db_session, project)
+    sender = FakeNotificationSender()
+    service = ReviewNotificationService(sender=sender)
+
+    service.deliver(record=record)
+
+    assert sender.bot_messages[0]["bot_type"] == bot.bot_type
+    assert sender.bot_messages[0]["webhook_url"] == bot.webhook_url
+    assert sender.bot_messages[0]["project_name"] == record.project_name_snapshot
+    assert sender.fallback_messages == []
+
+
+def test_review_notification_service_uses_env_fallback_without_default_bot(db_session) -> None:
+    record = _create_queued_review_record(db_session, platform_type="gitlab")
+    sender = FakeNotificationSender()
+    service = ReviewNotificationService(sender=sender)
+
+    service.deliver(record=record)
+
+    assert sender.bot_messages == []
+    assert sender.fallback_messages[0]["project_name"] == record.project_name_snapshot

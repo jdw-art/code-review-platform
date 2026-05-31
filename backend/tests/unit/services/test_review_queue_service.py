@@ -33,6 +33,14 @@ class FakeRedis:
         self.values[key] = retained
         return removed
 
+    async def lpop(self, key: str) -> str | None:
+        items = self.values.get(key, [])
+        if not items:
+            return None
+        value = items.pop(0)
+        self.values[key] = items
+        return value
+
     async def set(
         self,
         key: str,
@@ -74,6 +82,20 @@ async def test_queue_service_can_remove_enqueued_message(fake_redis: FakeRedis) 
     removed = await service.remove_message(message)
 
     assert removed is True
+    assert fake_redis.values["review:jobs"] == []
+
+
+@pytest.mark.anyio
+async def test_queue_service_can_dequeue_message(fake_redis: FakeRedis) -> None:
+    service = ReviewQueueService(redis_client=fake_redis, queue_name="review:jobs")
+    await service.enqueue(review_record_id=303, platform_type="gitlab", attempt=2)
+
+    message = await service.dequeue()
+
+    assert message is not None
+    assert message.review_record_id == 303
+    assert message.platform_type == "gitlab"
+    assert message.attempt == 2
     assert fake_redis.values["review:jobs"] == []
 
 

@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 class ReviewQueueRedisProtocol(Protocol):
     async def rpush(self, key: str, value: str) -> int: ...
+    async def lpop(self, key: str) -> str | None: ...
     async def lrem(self, key: str, count: int, value: str) -> int: ...
     async def set(
         self,
@@ -71,6 +72,12 @@ class ReviewQueueService:
     async def remove_message(self, raw_message: str) -> bool:
         removed = await self.redis.lrem(self.queue_name, 1, raw_message)
         return removed > 0
+
+    async def dequeue(self) -> ReviewQueueMessage | None:
+        raw_message = await self.redis.lpop(self.queue_name)
+        if raw_message is None:
+            return None
+        return ReviewQueueMessage.model_validate_json(raw_message)
 
     async def acquire_lock(self, *, review_record_id: int, ttl_seconds: int) -> bool:
         result = await self.redis.set(

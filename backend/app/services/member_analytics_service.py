@@ -121,6 +121,7 @@ class MemberAnalyticsService:
             .where(
                 ReviewRecord.project_id == project_member.project_id,
                 ReviewRecord.author == project_member.member_name,
+                ReviewRecord.review_status == "reviewed",
             )
             .order_by(ReviewRecord.updated_at.desc(), ReviewRecord.id.desc())
         ).all()

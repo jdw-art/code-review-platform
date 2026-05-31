@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",
         env_prefix="AI_CODE_REVIEWER_",
+        extra="ignore",
     )
 
     app_name: str = "AI Code Reviewer"

@@ -24,7 +24,9 @@ class DashboardService:
         total_review_records = self.session.scalar(
             select(func.count()).select_from(ReviewRecord)
         ) or 0
-        average_score = self.session.scalar(select(func.avg(ReviewRecord.score)))
+        average_score = self.session.scalar(
+            select(func.avg(ReviewRecord.score)).where(ReviewRecord.review_status == "reviewed")
+        )
         return DashboardOverviewResponse(
             total_projects=total_projects,
             active_projects=active_projects,
