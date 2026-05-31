@@ -6,13 +6,16 @@ from app.review.reviewer.protocol import ReviewRequest
 
 
 class LegacyCodeReviewerAdapter:
-    """Bridge backend worker execution to the existing codereview LLM reviewer."""
+    """Temporary fallback bridge for the legacy codereview reviewer path."""
 
     def __init__(self) -> None:
-        from app.workers.review_worker import _ensure_codereview_on_path  # noqa: PLC0415
-
-        _ensure_codereview_on_path()
-        from biz.utils.code_reviewer import CodeReviewer  # noqa: PLC0415
+        try:
+            from biz.utils.code_reviewer import CodeReviewer  # noqa: PLC0415
+        except ModuleNotFoundError as exc:
+            raise RuntimeError(
+                "Legacy reviewer fallback is unavailable without the legacy codereview runtime. "
+                "Use AI_CODE_REVIEWER_USE_BACKEND_REVIEWER=1 to keep the backend-native path enabled."
+            ) from exc
 
         self._reviewer = CodeReviewer()
 

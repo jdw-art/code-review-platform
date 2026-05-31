@@ -18,6 +18,7 @@ def test_settings_use_project_defaults():
     assert settings.redis_port == 6379
     assert settings.access_token_ttl_minutes == 15
     assert settings.refresh_token_ttl_days == 7
+    assert settings.use_backend_reviewer is True
 
 
 def test_settings_expose_secret_encryption_key() -> None:

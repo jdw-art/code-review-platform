@@ -3,9 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import os
-import sys
 import time
-from pathlib import Path
 from typing import Any
 
 from app.core.config import BACKEND_DIR
@@ -20,14 +18,7 @@ from app.services.review_queue_service import (
     get_review_queue_redis_client,
     get_review_queue_service,
 )
-
-
-def _get_codereview_dir() -> Path:
-    project_root = Path(__file__).resolve().parents[3]
-    return project_root / "codereview"
-
-
-def _load_backend_env_for_codereview() -> None:
+def _load_backend_env_compat() -> None:
     env_file = BACKEND_DIR / ".env"
     if not env_file.exists():
         return
@@ -47,24 +38,6 @@ def _load_backend_env_for_codereview() -> None:
         os.environ[env_key] = value
 
 
-def _prepare_codereview_runtime() -> Path:
-    codereview_dir = _get_codereview_dir()
-    codereview_path = str(codereview_dir)
-    if codereview_path not in sys.path:
-        sys.path.insert(0, codereview_path)
-    _load_backend_env_for_codereview()
-    if not os.getenv("LOG_FILE"):
-        log_dir = codereview_dir / "log"
-        log_dir.mkdir(parents=True, exist_ok=True)
-        os.environ["LOG_FILE"] = str(log_dir / "app.log")
-    os.chdir(codereview_dir)
-    return codereview_dir
-
-
-def _ensure_codereview_on_path() -> None:
-    _prepare_codereview_runtime()
-
-
 class IntegrationAdapterRegistry:
     def __init__(self) -> None:
         self._adapters = {
@@ -77,7 +50,7 @@ class IntegrationAdapterRegistry:
 
 
 def build_review_execution_service(*, session) -> ReviewExecutionService:
-    _prepare_codereview_runtime()
+    _load_backend_env_compat()
     return ReviewExecutionService(
         session=session,
         adapter_registry=IntegrationAdapterRegistry(),

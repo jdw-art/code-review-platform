@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-from pathlib import Path
 
 from app.workers import review_worker
 
@@ -31,45 +30,46 @@ def test_build_review_queue_service_uses_explicit_runtime_dependencies(monkeypat
     }
 
 
-def test_prepare_codereview_runtime_sets_default_log_file_and_cwd(monkeypatch, tmp_path) -> None:
-    codereview_dir = tmp_path / "codereview"
-    monkeypatch.setattr(review_worker, "_get_codereview_dir", lambda: codereview_dir)
-    monkeypatch.delenv("LOG_FILE", raising=False)
-
-    result = review_worker._prepare_codereview_runtime()
-
-    assert result == codereview_dir
-    assert Path(os.environ["LOG_FILE"]) == codereview_dir / "log/app.log"
-    assert (codereview_dir / "log").is_dir()
-    assert Path.cwd() == codereview_dir
-
-
-def test_prepare_codereview_runtime_loads_backend_env_for_codereview(monkeypatch, tmp_path) -> None:
+def test_load_backend_env_compat_reads_backend_env_without_overriding_existing_values(
+    monkeypatch,
+    tmp_path,
+) -> None:
     backend_dir = tmp_path / "backend"
     backend_dir.mkdir()
     (backend_dir / ".env").write_text(
-        'LLM_PROVIDER="openai"\nOPENAI_API_KEY="test-key"\n',
+        'LLM_PROVIDER="anthropic"\nOPENAI_API_KEY="file-openai-key"\nSUPPORTED_EXTENSIONS=".py,.ts"\n',
         encoding="utf-8",
     )
-    codereview_dir = tmp_path / "codereview"
-    codereview_dir.mkdir()
 
     monkeypatch.setattr(review_worker, "BACKEND_DIR", backend_dir)
-    monkeypatch.setattr(review_worker, "_get_codereview_dir", lambda: codereview_dir)
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "existing-openai-key")
+    monkeypatch.delenv("SUPPORTED_EXTENSIONS", raising=False)
 
-    review_worker._prepare_codereview_runtime()
+    review_worker._load_backend_env_compat()
 
-    assert os.environ["LLM_PROVIDER"] == "openai"
-    assert os.environ["OPENAI_API_KEY"] == "test-key"
+    assert os.environ["LLM_PROVIDER"] == "anthropic"
+    assert os.environ["OPENAI_API_KEY"] == "existing-openai-key"
+    assert os.environ["SUPPORTED_EXTENSIONS"] == ".py,.ts"
 
 
-def test_build_review_execution_service_prepares_codereview_runtime_before_adapters(monkeypatch) -> None:
+def test_load_backend_env_compat_ignores_missing_env_file(monkeypatch, tmp_path) -> None:
+    backend_dir = tmp_path / "backend"
+    backend_dir.mkdir()
+
+    monkeypatch.setattr(review_worker, "BACKEND_DIR", backend_dir)
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+
+    review_worker._load_backend_env_compat()
+
+    assert "LLM_PROVIDER" not in os.environ
+
+
+def test_build_review_execution_service_loads_backend_env_before_building_reviewer(monkeypatch) -> None:
     steps: list[str] = []
 
-    def fake_prepare() -> None:
-        steps.append("prepare")
+    def fake_load_backend_env_compat() -> None:
+        steps.append("load-env")
 
     class FakeAdapterRegistry:
         def __init__(self) -> None:
@@ -79,21 +79,25 @@ def test_build_review_execution_service_prepares_codereview_runtime_before_adapt
         steps.append(f"reviewer:{use_backend_reviewer}")
         return object()
 
-    monkeypatch.setattr(review_worker, "_prepare_codereview_runtime", fake_prepare)
     monkeypatch.setattr(review_worker, "IntegrationAdapterRegistry", FakeAdapterRegistry)
     monkeypatch.setattr(
         review_worker,
         "get_settings",
-        lambda: type("Settings", (), {"use_backend_reviewer": False})(),
+        lambda: type("Settings", (), {"use_backend_reviewer": True})(),
     )
     monkeypatch.setattr(review_worker, "build_reviewer", fake_build_reviewer)
     monkeypatch.setattr(review_worker, "ReviewCommentService", lambda: object())
     monkeypatch.setattr(review_worker, "ReviewNotificationService", lambda: object())
+    monkeypatch.setattr(
+        review_worker,
+        "_load_backend_env_compat",
+        fake_load_backend_env_compat,
+    )
 
     review_worker.build_review_execution_service(session=object())
 
-    assert steps[0] == "prepare"
-    assert "reviewer:False" in steps
+    assert steps[0] == "load-env"
+    assert "reviewer:True" in steps
 
 
 def test_resolve_maybe_awaitable_reuses_current_event_loop() -> None:
