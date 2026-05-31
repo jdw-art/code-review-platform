@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import select
 
 from app.db.models import NotificationBot, Project, ProjectTemplate, ReviewCommit, ReviewRecord, User
+from app.review.reviewer.protocol import ReviewRequest
 from app.security.passwords import hash_password
 from app.services.review_comment_service import ReviewCommentService
 from app.services.review_execution_service import ReviewExecutionService
@@ -53,21 +54,10 @@ class FakeAdapterRegistry:
 class FakeReviewer:
     def __init__(self, review_text: str = "总结\n总分：95分") -> None:
         self.review_text = review_text
-        self.calls: list[dict[str, object]] = []
+        self.calls: list[ReviewRequest] = []
 
-    def review(
-        self,
-        record: ReviewRecord,
-        changes: list[dict[str, object]],
-        commits: list[dict[str, object]],
-    ) -> str:
-        self.calls.append(
-            {
-                "record_id": record.id,
-                "changes": changes,
-                "commits": commits,
-            }
-        )
+    def review(self, request: ReviewRequest) -> str:
+        self.calls.append(request)
         return self.review_text
 
     def parse_score(self, review_text: str) -> int:
@@ -83,13 +73,8 @@ class ExplodingReviewer(FakeReviewer):
         super().__init__()
         self.error_message = error_message
 
-    def review(
-        self,
-        record: ReviewRecord,
-        changes: list[dict[str, object]],
-        commits: list[dict[str, object]],
-    ) -> str:
-        del record, changes, commits
+    def review(self, request: ReviewRequest) -> str:
+        del request
         raise RuntimeError(self.error_message)
 
 
@@ -338,6 +323,24 @@ def test_execution_service_marks_reviewed_after_success(
     assert record.agent_trace["status"] == "reviewed"
     assert fake_comment_service.published == [record.id]
     assert fake_notification_service.sent == [record.id]
+    assert len(fake_reviewer.calls) == 1
+    assert fake_reviewer.calls[0].record.id == record.id
+    assert fake_reviewer.calls[0].changes == [
+        {
+            "new_path": "backend/app/services/review_execution_service.py",
+            "diff": "+print('ok')",
+            "additions": 3,
+            "deletions": 1,
+        }
+    ]
+    assert fake_reviewer.calls[0].commits == [
+        {
+            "id": "abc123456789",
+            "message": "feat: add worker execution service",
+            "author": "alice",
+            "timestamp": "2026-05-31T08:00:00Z",
+        }
+    ]
     assert adapter.published_comments == [
         {
             "record_id": record.id,
@@ -788,7 +791,7 @@ def test_execution_service_filters_supported_extensions(
     service.execute(review_record_id=record.id, attempt=1)
 
     assert len(fake_reviewer.calls) == 1
-    reviewed_changes = fake_reviewer.calls[0]["changes"]
+    reviewed_changes = fake_reviewer.calls[0].changes
     assert reviewed_changes == [
         {"new_path": "worker.ts", "diff": "+const a = 1", "additions": 4, "deletions": 1}
     ]

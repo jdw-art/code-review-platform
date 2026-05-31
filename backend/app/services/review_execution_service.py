@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import ReviewCommit, ReviewRecord
 from app.db.session import get_db
+from app.review.reviewer.protocol import ReviewRequest
 from app.services.review_comment_service import ReviewCommentService
 from app.services.review_notification_service import ReviewNotificationService
 
@@ -68,9 +69,11 @@ class ReviewExecutionService:
                 return
 
             review_text = self.reviewer.review(
-                record=record,
-                changes=filtered_changes,
-                commits=commits,
+                ReviewRequest(
+                    record=record,
+                    changes=filtered_changes,
+                    commits=commits,
+                )
             )
             record.score = self.reviewer.parse_score(review_text)
             record.review_result = review_text
