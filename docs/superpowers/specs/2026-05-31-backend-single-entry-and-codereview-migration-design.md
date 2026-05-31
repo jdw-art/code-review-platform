@@ -161,6 +161,8 @@ uvicorn app.main:app --reload
 - `uvicorn app.main:app`
 - `python -m app.workers.review_worker`
 
+这并不意味着维护两套独立项目或两套完全不同的部署体系，而是同一项目下的两个运行角色。推荐做法是复用同一份代码与镜像，只区分启动命令、实例数与资源配额。
+
 原因如下：
 
 - API 流量与审查任务具备不同的资源特征。
@@ -176,33 +178,28 @@ uvicorn app.main:app --reload
 - `backend/app/api/`
 - `backend/app/services/`
 - `backend/app/workers/`
-- `backend/app/review/config/`
 - `backend/app/review/llm/`
 - `backend/app/review/reviewer/`
 - `backend/app/review/reporting/`
-- `backend/app/review/platform/`
 - `backend/app/core/`
+- `backend/app/integrations/`
 
 ### 8.2 关键组件
 
 建议引入以下组件边界：
 
-- `AppLifecycleManager`
-  - 负责应用生命周期编排、bootstrap、开发态 worker 启停协调。
 - `DevWorkerSupervisor`
   - 仅在开发模式下启用，负责拉起、监控、关闭一个本地 worker 子进程。
-- `ReviewWorker`
-  - 负责消费队列并调用执行服务。
 - `ReviewExecutionService`
   - 负责单次审查任务的完整编排。
 - `ReviewerProtocol`
   - 定义 reviewer 的统一接口。
-- `PlatformAdapter`
-  - 负责平台差异，如 PR/MR/Push diff 获取、评论回写、通知补充上下文。
 - `ReviewPromptBuilder`
-  - 负责从模板、变更、提交信息组装 prompt。
-- `ReviewReporter`
-  - 负责日报或统计汇总输出。
+  - 负责按现有 prompt 规则组装发送给 reviewer 的内容。
+- `DailyReportService`
+  - 继续作为日报编排入口，后续只替换其内部 reporter 实现。
+- `Integration Adapters`
+  - 继续由现有 `app/integrations/*` 承担平台适配职责。
 
 ### 8.3 组件职责
 
@@ -210,8 +207,9 @@ uvicorn app.main:app --reload
 
 - `api` 层只做接收、校验、入库、入队，不做长耗时审查。
 - `services` 层负责业务编排、数据库变更、状态流转。
-- `workers` 层负责消费与进程边界。
-- `review/*` 层负责平台无关或平台相关的审查核心能力。
+- `workers` 层继续基于现有 `review_worker.py` 演进，负责消费与进程边界。
+- `integrations/*` 层继续负责 webhook 标准化、变更拉取、提交拉取与评论回写等平台差异。
+- `review/*` 层只承载从 `codereview` 迁入的审查核心能力，避免重复包装 `backend` 已有服务。
 
 ## 9. 开发态单入口设计
 
@@ -254,7 +252,6 @@ uvicorn app.main:app --reload
 - prompt 组装与审查主流程。
 - review score 解析。
 - 支持文件后缀与过滤策略。
-- 平台差异适配中仍然留在 `codereview/` 的部分行为。
 - 报告与日报能力。
 - 与 reviewer 强绑定的环境变量兼容逻辑。
 
@@ -262,11 +259,25 @@ uvicorn app.main:app --reload
 
 - LLM 能力迁入 `backend/app/review/llm/`
 - reviewer 能力迁入 `backend/app/review/reviewer/`
-- 平台审查拼装逻辑迁入 `backend/app/review/platform/`
 - 日报与汇总能力迁入 `backend/app/review/reporting/`
-- 兼容配置能力迁入 `backend/app/review/config/`
+- 平台差异能力继续保留在现有 `backend/app/integrations/`
+- 配置入口继续统一保留在 `backend/app/core/config.py`
 
-### 10.3 过渡层设计
+### 10.3 Prompt 模板兼容策略
+
+`codereview/conf/prompt_templates.yml` 是当前真实链路正在使用的 prompt 基线，本轮迁移必须保留其行为语义，不能在迁移过程中直接删除或替换。
+
+首期要求如下：
+
+- 保留 `code_review_prompt.system_prompt` 与 `user_prompt` 的模板结构。
+- 保留 `style`、`diffs_text`、`commits_text` 的现有渲染方式。
+- 新迁入 `backend` 的 reviewer 首版输出，应与当前 `CodeReviewer` 的 prompt 组装行为等价。
+
+实现归属上，不要求继续从 `codereview/` 目录读取该文件，但要求将其内容与渲染逻辑迁入 `backend` 后保持兼容。
+
+`project_template.review_prompt_template` 在后续阶段再作为项目级覆盖或补充入口接入，本轮不把它作为唯一 prompt 来源，也不立即替代 `prompt_templates.yml`。
+
+### 10.4 过渡层设计
 
 在迁移期间引入 reviewer 抽象层：
 
@@ -281,7 +292,7 @@ uvicorn app.main:app --reload
 
 执行服务始终只依赖 `ReviewerProtocol`，不直接依赖 `codereview`。
 
-### 10.4 迁移开关
+### 10.5 迁移开关
 
 建议增加以下开关：
 
@@ -295,12 +306,13 @@ uvicorn app.main:app --reload
 
 这样可以保证迁移期间随时切换回旧实现，便于真实链路回归。
 
-### 10.5 删除条件
+### 10.6 删除条件
 
 只有满足以下条件后，才能删除 `codereview/`：
 
 - 新 reviewer 默认运行在 `backend` 中。
 - GitLab + GitHub 真实链路验证通过。
+- `prompt_templates.yml` 的兼容内容与渲染逻辑已经迁入 `backend`。
 - 通知、评论、日报、评分解析都不再依赖 `codereview` 目录。
 - 回归测试与验证脚本不再引用 `codereview` 路径。
 
@@ -319,6 +331,7 @@ uvicorn app.main:app --reload
 - `backend` 作为唯一配置入口。
 - 历史 `codereview` 使用的变量名尽量继续兼容。
 - 不允许新的核心模块依赖切换工作目录或手工注入 `sys.path` 才能运行。
+- 不新增第二套 review 专用 settings 主入口。
 
 ## 12. 数据流与执行流
 
@@ -328,8 +341,8 @@ uvicorn app.main:app --reload
 2. webhook 解析、幂等检查、项目匹配、记录入库。
 3. 任务进入 Redis 队列。
 4. worker 消费任务并加载 `ReviewExecutionService`。
-5. `ReviewExecutionService` 调用平台 adapter 拉取变更与提交信息。
-6. `ReviewPromptBuilder` 按项目模板与变更内容组装 prompt。
+5. `ReviewExecutionService` 调用现有 `app/integrations/*` adapter 拉取变更与提交信息。
+6. `ReviewPromptBuilder` 按现有 prompt 模板兼容规则组装 prompt，后续再逐步接入 `project_template` 覆盖能力。
 7. reviewer 调用 LLM 并返回审查结果。
 8. 执行服务更新 `review_records` 状态、分数、总结、trace。
 9. 评论服务回写 GitLab / GitHub comment。
@@ -370,11 +383,12 @@ uvicorn app.main:app --reload
 
 1. 建立开发态 worker supervisor 与生命周期托管。
 2. 抽象 reviewer 接口，解耦执行服务与 `codereview` 直接依赖。
-3. 将 LLM、prompt、score 解析等能力迁入 `backend/app/review/*`。
-4. 将报告与日报能力迁入 `backend`。
-5. 切换默认 reviewer 到 backend 实现。
-6. 跑完整测试与真实链路验证。
-7. 删除 `codereview/` 与相关兼容代码。
+3. 将 `prompt_templates.yml` 与现有 prompt 渲染逻辑兼容迁入 `backend`。
+4. 将 LLM、prompt、score 解析等能力迁入 `backend/app/review/*`。
+5. 将报告与日报能力迁入 `backend`，但保留 `DailyReportService` 作为现有编排入口。
+6. 切换默认 reviewer 到 backend 实现。
+7. 跑完整测试与真实链路验证。
+8. 删除 `codereview/` 与相关兼容代码。
 
 ## 15. 分支策略
 
