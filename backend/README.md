@@ -41,9 +41,23 @@ Default local services:
 ```bash
 cd backend
 uvicorn app.main:app --reload
+```
+
+Recommended local development path:
+
+- Run `uvicorn app.main:app --reload` as the primary entrypoint.
+- Set `AI_CODE_REVIEWER_DEV_AUTOSTART_WORKER=1` to let the backend auto-start the review worker in development.
+- Set `AI_CODE_REVIEWER_USE_BACKEND_REVIEWER=1` to switch from the legacy reviewer bridge to the backend native reviewer path.
+
+Manual worker entrypoints are still available when you want explicit process control:
+
+```bash
+cd backend
 python -m app.workers.review_worker
 python -m app.workers.report_worker
 ```
+
+The legacy reviewer path remains available as a fallback when `AI_CODE_REVIEWER_USE_BACKEND_REVIEWER` is not enabled.
 
 The API exposes authentication routes under `/api/v1/auth`, including `/api/v1/auth/login`.
 

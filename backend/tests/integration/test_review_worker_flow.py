@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from app.db.models import Project, ProjectTemplate, ReviewRecord
+from app.review.reviewer.protocol import ReviewRequest
 from app.schemas.integration_webhook import ReviewQueueMessage
 from app.services.review_execution_service import ReviewExecutionService
 from app.workers.review_worker import run_single_review_job
@@ -67,13 +68,8 @@ class FakeAdapterRegistry:
 
 
 class FakeReviewer:
-    def review(
-        self,
-        record: ReviewRecord,
-        changes: list[dict[str, object]],
-        commits: list[dict[str, object]],
-    ) -> str:
-        del record, changes, commits
+    def review(self, request: ReviewRequest) -> str:
+        del request
         return "总结\n总分：95分"
 
     def parse_score(self, review_text: str) -> int:

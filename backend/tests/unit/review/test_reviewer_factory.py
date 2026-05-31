@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import sys
 from types import ModuleType
 
@@ -40,11 +41,17 @@ def test_build_reviewer_uses_delayed_backend_import_when_enabled(monkeypatch) ->
 def test_build_reviewer_raises_clear_error_when_backend_reviewer_unavailable(
     monkeypatch,
 ) -> None:
-    monkeypatch.delitem(
-        sys.modules,
-        "app.review.reviewer.backend_reviewer",
-        raising=False,
-    )
+    original_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "app.review.reviewer.backend_reviewer":
+            raise ModuleNotFoundError(
+                "No module named 'app.review.reviewer.backend_reviewer'",
+                name=name,
+            )
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
 
     with pytest.raises(RuntimeError, match="Backend reviewer is not available yet"):
         reviewer_factory.build_reviewer(use_backend_reviewer=True)
