@@ -123,6 +123,9 @@ def test_build_mock_ingest_request_maps_merge_request_fields() -> None:
     assert request_payload["project_key"] == "ai-code-reviewer"
     assert request_payload["source"] == "historical_json_import"
     assert request_payload["payload"]["external_event_id"] == "mr:6"
+    assert request_payload["payload"]["review_status"] == "reviewed"
+    assert request_payload["payload"]["delivery_status"] == "delivered"
+    assert request_payload["payload"]["platform"] == "github"
     assert request_payload["payload"]["url_slug"] == "jdw-art/ai-code-reviewer/pull/2"
     assert request_payload["payload"]["source_project_id"] == "jdw-art/ai-code-reviewer"
     assert request_payload["payload"]["agent_trace"] == {}
@@ -164,6 +167,8 @@ def test_build_mock_ingest_request_maps_push_fields() -> None:
     assert request_payload["event_type"] == "push"
     assert request_payload["project_key"] == "agentic-rag"
     assert request_payload["payload"]["external_event_id"] == "push:4"
+    assert request_payload["payload"]["review_status"] == "reviewed"
+    assert request_payload["payload"]["delivery_status"] == "delivered"
     assert request_payload["payload"]["branch"] == "feat/document-identity-v2"
     assert request_payload["payload"]["commits"] == [
         {
@@ -173,3 +178,22 @@ def test_build_mock_ingest_request_maps_push_fields() -> None:
             "timestamp": 1779726840,
         }
     ]
+
+
+def test_build_mock_ingest_request_maps_platform_and_review_status() -> None:
+    payload = build_mock_ingest_request(
+        event_type="merge_request",
+        project_key="demo",
+        source_record={
+            "id": 1,
+            "project_name": "demo",
+            "author": "alice",
+            "platform": "gitlab",
+            "commit_messages": "feat: a",
+            "review_result": "ok",
+        },
+    )
+
+    assert payload["payload"]["review_status"] == "reviewed"
+    assert payload["payload"]["delivery_status"] == "delivered"
+    assert payload["payload"]["platform"] == "gitlab"

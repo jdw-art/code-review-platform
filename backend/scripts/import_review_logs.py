@@ -140,6 +140,7 @@ def build_mock_ingest_request(
         "agent_trace": normalize_agent_trace(source_record.get("agent_trace")),
         "summary": None,
         "review_status": "reviewed",
+        "delivery_status": "delivered",
     }
 
     if event_type == "merge_request":

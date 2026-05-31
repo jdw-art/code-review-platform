@@ -52,6 +52,7 @@ class Project(BigIntPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
         default=dict,
         server_default=text("'{}'::json"),
+        doc="可存 external_repo_full_name、gitlab_project_path、external_project_id 等匹配信息",
     )
     created_by: Mapped[int | None] = mapped_column(
         BigInteger,

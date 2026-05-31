@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, Float, ForeignKey, Index, Integer, String, Text, text
+from sqlalchemy import JSON, BigInteger, DateTime, Float, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, BigIntPrimaryKeyMixin, TimestampMixin
@@ -28,7 +29,12 @@ class ReviewRecord(BigIntPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
     event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    platform_type: Mapped[str] = mapped_column(String(32), nullable=False)
     external_event_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    external_project_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    external_merge_request_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    external_pull_request_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    external_commit_sha: Mapped[str | None] = mapped_column(String(255), nullable=True)
     project_name_snapshot: Mapped[str] = mapped_column(String(100), nullable=False)
     template_id_snapshot: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     template_name_snapshot: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -57,11 +63,26 @@ class ReviewRecord(BigIntPrimaryKeyMixin, TimestampMixin, Base):
         server_default=text("'pending'"),
         nullable=False,
     )
+    delivery_status: Mapped[str] = mapped_column(
+        String(32),
+        default="pending",
+        server_default=text("'pending'"),
+        nullable=False,
+    )
     review_result: Mapped[str | None] = mapped_column(Text, nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     url: Mapped[str | None] = mapped_column(Text, nullable=True)
     url_slug: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_commit_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    retry_count: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default=text("0"),
+        nullable=False,
+    )
     additions: Mapped[int] = mapped_column(
         Integer,
         default=0,

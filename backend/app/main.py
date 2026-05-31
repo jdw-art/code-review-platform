@@ -1,4 +1,5 @@
 import logging
+import sys
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
@@ -6,10 +7,11 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.api.router import api_router
-from app.core.config import Settings
+from app.core.config import BACKEND_DIR, Settings
 from app.core.logging import configure_logging
 from app.schemas.common import DomainError, ErrorResponse
 from app.services.bootstrap import run_bootstrap
+from app.workers.dev_worker_supervisor import DevWorkerSupervisor
 
 
 settings = Settings()
@@ -17,7 +19,9 @@ settings = Settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    del app
     configure_logging()
+    supervisor: DevWorkerSupervisor | None = None
     if settings.uses_insecure_auth_defaults():
         logging.getLogger(__name__).warning(
             "Backend is running with insecure bootstrap auth defaults. "
@@ -25,8 +29,18 @@ async def lifespan(app: FastAPI):
             "AI_CODE_REVIEWER_SECRET_ENCRYPTION_KEY and "
             "AI_CODE_REVIEWER_BOOTSTRAP_ADMIN_PASSWORD before any non-local use."
         )
-    await run_bootstrap()
-    yield
+    if settings.dev_autostart_worker:
+        supervisor = DevWorkerSupervisor(
+            backend_dir=BACKEND_DIR,
+            python_executable=sys.executable,
+        )
+        supervisor.start()
+    try:
+        await run_bootstrap()
+        yield
+    finally:
+        if supervisor is not None:
+            supervisor.stop()
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)

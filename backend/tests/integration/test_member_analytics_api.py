@@ -32,13 +32,14 @@ def test_member_analytics_api_supports_list_and_detail(
             ReviewRecord(
                 project_id=project.id,
                 event_type="merge_request",
+                platform_type="gitlab",
                 project_name_snapshot=project.name,
                 author="alice",
                 title="feat: add analytics api",
                 commit_count=1,
                 commit_messages=["feat: add analytics api"],
                 score=92,
-                review_status="completed",
+                review_status="reviewed",
                 url_slug="mr-1",
                 additions=14,
                 deletions=3,
@@ -46,13 +47,14 @@ def test_member_analytics_api_supports_list_and_detail(
             ReviewRecord(
                 project_id=project.id,
                 event_type="push",
+                platform_type="gitlab",
                 project_name_snapshot=project.name,
                 author="alice",
                 title="fix: tighten analytics api",
                 commit_count=1,
                 commit_messages=["fix: tighten analytics api"],
                 score=68,
-                review_status="completed",
+                review_status="reviewed",
                 url_slug="push-1",
                 additions=6,
                 deletions=2,
@@ -60,13 +62,14 @@ def test_member_analytics_api_supports_list_and_detail(
             ReviewRecord(
                 project_id=project.id,
                 event_type="push",
+                platform_type="gitlab",
                 project_name_snapshot=project.name,
                 author="bob",
                 title="docs: update member analytics",
                 commit_count=1,
                 commit_messages=["docs: update member analytics"],
                 score=75,
-                review_status="completed",
+                review_status="reviewed",
                 url_slug="push-2",
                 additions=2,
                 deletions=1,
@@ -102,6 +105,69 @@ def test_member_analytics_api_supports_list_and_detail(
     assert detail["role_name"] == "maintainer"
     assert detail["review_count"] == 2
     assert {item["url_slug"] for item in detail["recent_reviews"]} == {"mr-1", "push-1"}
+
+
+def test_member_analytics_excludes_failed_records_from_average_score(
+    authenticated_superuser_client,
+    db_session,
+) -> None:
+    project = Project(
+        name="Member Analytics Failed Project",
+        key="member-analytics-failed-project",
+        platform_type="gitlab",
+        default_branch="main",
+        is_active=True,
+        review_enabled=True,
+    )
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+
+    project_member = ProjectMember(
+        project_id=project.id,
+        member_name="alice",
+        member_email="alice@example.com",
+        role_name="maintainer",
+        is_active=True,
+    )
+    db_session.add(project_member)
+    db_session.add_all(
+        [
+            ReviewRecord(
+                project_id=project.id,
+                event_type="merge_request",
+                platform_type="gitlab",
+                project_name_snapshot=project.name,
+                author="alice",
+                commit_count=1,
+                commit_messages=["feat: reviewed"],
+                score=90,
+                review_status="reviewed",
+            ),
+            ReviewRecord(
+                project_id=project.id,
+                event_type="merge_request",
+                platform_type="gitlab",
+                project_name_snapshot=project.name,
+                author="alice",
+                commit_count=1,
+                commit_messages=["feat: failed"],
+                score=20,
+                review_status="failed",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = authenticated_superuser_client.get(
+        "/api/v1/member-analytics",
+        params={"page": 1, "page_size": 20, "project_id": project.id},
+    )
+
+    assert response.status_code == 200
+    alice = next(item for item in response.json()["items"] if item["member_name"] == "alice")
+    assert alice["review_count"] == 1
+    assert alice["average_score"] == 90.0
 
 
 def test_member_analytics_api_exposes_chinese_openapi(

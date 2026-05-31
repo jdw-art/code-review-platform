@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.models import Project, ReviewCommit, ReviewRecord
 from app.db.session import get_db
+from app.integrations.base import NormalizedWebhookEvent
 from app.schemas.common import DomainConflictError
 from app.schemas.review_record import MockReviewIngestRequest, ReviewIngestResponse
 
@@ -46,6 +48,7 @@ class ReviewIngestService:
         review_record = ReviewRecord(
             project_id=project.id,
             event_type=request.event_type,
+            platform_type=project.platform_type,
             external_event_id=self._get_optional_text(payload.get("external_event_id")),
             project_name_snapshot=project.name,
             template_id_snapshot=template.id if template is not None else None,
@@ -106,6 +109,79 @@ class ReviewIngestService:
         )
         return self._to_ingest_response(review_record, project.key, is_duplicate=False)
 
+    async def ingest_webhook_event(
+        self,
+        *,
+        project: Project,
+        event: NormalizedWebhookEvent,
+    ) -> tuple[ReviewRecord, bool]:
+        """写入真实 webhook 审查记录，重复事件直接返回既有记录。"""
+        self._ensure_project_active(project)
+        self._acquire_webhook_idempotency_lock(project.id, event)
+
+        existing = self._find_existing_webhook_record(project.id, event)
+        if existing is not None:
+            if existing.review_status == "failed":
+                existing.review_status = "queued"
+                existing.failed_at = None
+                existing.error_message = None
+                self.session.flush()
+                logger.info(
+                    "Webhook review event re-queued review_record_id=%s project_id=%s platform=%s.",
+                    existing.id,
+                    project.id,
+                    event.platform_type,
+                )
+                return existing, False
+            logger.info(
+                "Webhook review event deduplicated review_record_id=%s project_id=%s platform=%s.",
+                existing.id,
+                project.id,
+                event.platform_type,
+            )
+            return existing, True
+
+        template = project.template
+        review_record = ReviewRecord(
+            project_id=project.id,
+            event_type=event.event_type,
+            platform_type=event.platform_type,
+            external_event_id=event.external_event_id,
+            external_project_id=event.external_project_id,
+            external_merge_request_id=self._extract_external_merge_request_id(event),
+            external_pull_request_id=self._extract_external_pull_request_id(event),
+            project_name_snapshot=project.name,
+            template_id_snapshot=template.id if template is not None else None,
+            template_name_snapshot=template.name if template is not None else None,
+            review_prompt_snapshot=(
+                template.review_prompt_template if template is not None else None
+            ),
+            author=event.author or "unknown",
+            title=event.title,
+            branch=event.branch,
+            source_branch=event.source_branch,
+            target_branch=event.target_branch,
+            commit_count=0,
+            commit_messages=[],
+            review_status="queued",
+            delivery_status="pending",
+            url=event.repo_url,
+            last_commit_id=event.last_commit_id,
+            external_commit_sha=event.last_commit_id,
+            webhook_data=event.webhook_data,
+            updated_at=self._resolve_webhook_updated_at(event) or datetime.now(UTC),
+        )
+        self.session.add(review_record)
+        self.session.flush()
+        logger.info(
+            "Webhook review event ingested review_record_id=%s project_id=%s platform=%s event_type=%s.",
+            review_record.id,
+            project.id,
+            event.platform_type,
+            event.event_type,
+        )
+        return review_record, False
+
     def _resolve_project(self, request: MockReviewIngestRequest) -> Project:
         """根据外层定位字段优先解析平台内项目。"""
         statement = select(Project).options(selectinload(Project.template))
@@ -141,7 +217,7 @@ class ReviewIngestService:
         if not project.is_active:
             raise DomainConflictError(
                 code="PROJECT_INACTIVE",
-                message="停用项目不能接收 mock 审查事件。",
+                message="停用项目不能接收审查事件。",
             )
 
     def _find_existing_record(
@@ -175,6 +251,153 @@ class ReviewIngestService:
                 )
             )
         )
+
+    def _find_existing_webhook_record(
+        self,
+        project_id: int,
+        event: NormalizedWebhookEvent,
+    ) -> ReviewRecord | None:
+        """按 webhook 唯一事件 ID 优先，缺失时退化为平台事件关键字段。"""
+        if event.external_event_id:
+            existing = self.session.scalar(
+                select(ReviewRecord).where(
+                    ReviewRecord.project_id == project_id,
+                    ReviewRecord.external_event_id == event.external_event_id,
+                )
+            )
+            if existing is not None:
+                return existing
+
+        external_merge_request_id = self._extract_external_merge_request_id(event)
+        if event.event_type == "merge_request" and external_merge_request_id and event.last_commit_id:
+            return self.session.scalar(
+                select(ReviewRecord).where(
+                    and_(
+                        ReviewRecord.project_id == project_id,
+                        ReviewRecord.event_type == event.event_type,
+                        ReviewRecord.external_merge_request_id == external_merge_request_id,
+                        ReviewRecord.last_commit_id == event.last_commit_id,
+                    )
+                )
+            )
+
+        external_pull_request_id = self._extract_external_pull_request_id(event)
+        if event.event_type == "pull_request" and external_pull_request_id and event.last_commit_id:
+            return self.session.scalar(
+                select(ReviewRecord).where(
+                    and_(
+                        ReviewRecord.project_id == project_id,
+                        ReviewRecord.event_type == event.event_type,
+                        ReviewRecord.external_pull_request_id == external_pull_request_id,
+                        ReviewRecord.last_commit_id == event.last_commit_id,
+                    )
+                )
+            )
+
+        if event.event_type == "push" and event.branch and event.last_commit_id:
+            return self.session.scalar(
+                select(ReviewRecord).where(
+                    and_(
+                        ReviewRecord.project_id == project_id,
+                        ReviewRecord.event_type == event.event_type,
+                        ReviewRecord.branch == event.branch,
+                        ReviewRecord.last_commit_id == event.last_commit_id,
+                    )
+                )
+            )
+
+        if event.last_commit_id and (event.source_branch or event.target_branch):
+            return self.session.scalar(
+                select(ReviewRecord).where(
+                    and_(
+                        ReviewRecord.project_id == project_id,
+                        ReviewRecord.event_type == event.event_type,
+                        ReviewRecord.source_branch == event.source_branch,
+                        ReviewRecord.target_branch == event.target_branch,
+                        ReviewRecord.last_commit_id == event.last_commit_id,
+                    )
+                )
+            )
+
+        return None
+
+    def _acquire_webhook_idempotency_lock(
+        self,
+        project_id: int,
+        event: NormalizedWebhookEvent,
+    ) -> None:
+        lock_value = self._build_webhook_lock_value(project_id, event)
+        self.session.execute(select(func.pg_advisory_xact_lock(lock_value)))
+
+    def _build_webhook_lock_value(
+        self,
+        project_id: int,
+        event: NormalizedWebhookEvent,
+    ) -> int:
+        token = self._build_webhook_dedupe_token(project_id, event)
+        digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
+        return int.from_bytes(digest, byteorder="big", signed=False) & ((1 << 63) - 1)
+
+    def _build_webhook_dedupe_token(
+        self,
+        project_id: int,
+        event: NormalizedWebhookEvent,
+    ) -> str:
+        if event.external_event_id:
+            return f"event:{project_id}:{event.external_event_id}"
+
+        external_merge_request_id = self._extract_external_merge_request_id(event)
+        if event.event_type == "merge_request" and external_merge_request_id and event.last_commit_id:
+            return (
+                f"merge_request:{project_id}:{external_merge_request_id}:"
+                f"{event.last_commit_id}"
+            )
+
+        external_pull_request_id = self._extract_external_pull_request_id(event)
+        if event.event_type == "pull_request" and external_pull_request_id and event.last_commit_id:
+            return (
+                f"pull_request:{project_id}:{external_pull_request_id}:"
+                f"{event.last_commit_id}"
+            )
+
+        if event.event_type == "push" and event.branch and event.last_commit_id:
+            return f"push:{project_id}:{event.branch}:{event.last_commit_id}"
+
+        return (
+            f"fallback:{project_id}:{event.event_type}:{event.source_branch or ''}:"
+            f"{event.target_branch or ''}:{event.last_commit_id or ''}"
+        )
+
+    @staticmethod
+    def _extract_external_merge_request_id(event: NormalizedWebhookEvent) -> str | None:
+        if event.event_type != "merge_request":
+            return None
+        attributes = event.webhook_data.get("object_attributes")
+        if not isinstance(attributes, dict):
+            return None
+        value = attributes.get("iid") or attributes.get("id")
+        return str(value).strip() if value not in (None, "") else None
+
+    @staticmethod
+    def _extract_external_pull_request_id(event: NormalizedWebhookEvent) -> str | None:
+        if event.event_type != "pull_request":
+            return None
+        pull_request = event.webhook_data.get("pull_request")
+        if not isinstance(pull_request, dict):
+            return None
+        value = pull_request.get("number") or pull_request.get("id")
+        return str(value).strip() if value not in (None, "") else None
+
+    def _resolve_webhook_updated_at(self, event: NormalizedWebhookEvent) -> datetime | None:
+        if event.event_type == "merge_request":
+            attributes = event.webhook_data.get("object_attributes")
+            if isinstance(attributes, dict):
+                return self._to_datetime(attributes.get("updated_at"))
+        if event.event_type == "pull_request":
+            pull_request = event.webhook_data.get("pull_request")
+            if isinstance(pull_request, dict):
+                return self._to_datetime(pull_request.get("updated_at"))
+        return None
 
     @staticmethod
     def _normalize_commits(raw_commits: Any) -> list[dict[str, Any]]:

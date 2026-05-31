@@ -42,3 +42,45 @@ def test_settings_flag_default_secret_encryption_key_as_insecure() -> None:
     )
 
     assert settings.uses_insecure_auth_defaults() is True
+
+
+def test_settings_ignore_codereview_compatibility_keys() -> None:
+    settings = Settings(
+        gitlab_url="https://gitlab.example.com",
+        gitlab_access_token="gitlab-token",
+        github_url="https://github.com",
+        github_api_url="https://api.github.com",
+        github_access_token="github-token",
+        llm_provider="openai",
+        openai_api_key="openai-key",
+        openai_api_base_url="https://example.com/v1",
+        openai_api_model="gpt-4o-mini",
+        supported_extensions=".py,.ts",
+        review_max_tokens="10000",
+        review_style="professional",
+        push_review_enabled="1",
+        merge_review_only_protected_branches_enabled="0",
+    )
+
+    assert settings.app_name == "AI Code Reviewer"
+
+
+def test_settings_exposes_dev_worker_flags(tmp_path, monkeypatch) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "AI_CODE_REVIEWER_DEV_AUTOSTART_WORKER=1",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        Settings,
+        "model_config",
+        {**Settings.model_config, "env_file": env_file},
+    )
+
+    settings = Settings()
+
+    assert settings.dev_autostart_worker is True
