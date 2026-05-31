@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import app.services.daily_report_service as daily_report_service_module
 from app.db.models import Project, ProjectTemplate, ReviewRecord
 from app.services.daily_report_service import DailyReportService
 
@@ -171,3 +172,39 @@ def test_daily_report_service_sends_markdown_via_sender(db_session) -> None:
     assert sender.messages[0]["title"] == "代码提交日报"
     assert sender.messages[0]["content"].startswith("### 代码提交日报")
     assert sender.messages[0]["project_name"] is None
+
+
+def test_daily_report_service_uses_backend_renderer_by_default(
+    db_session,
+    monkeypatch,
+) -> None:
+    sender = FakeDailyReportSender()
+    captured_rows: list[list[dict[str, object]]] = []
+
+    class FakeDailyReportRenderer:
+        def generate_report(self, rows: list[dict[str, object]]) -> str:
+            captured_rows.append(rows)
+            return "## backend renderer report"
+
+    monkeypatch.setattr(
+        daily_report_service_module,
+        "DailyReportRenderer",
+        FakeDailyReportRenderer,
+    )
+    _seed_review_record(
+        db_session,
+        author="alice",
+        commit_messages=["feat: backend renderer"],
+        review_status="reviewed",
+        review_result="looks good",
+    )
+
+    service = DailyReportService(
+        session=db_session,
+        sender=sender,
+    )
+    report = service.send_today_report()
+
+    assert report == "## backend renderer report"
+    assert captured_rows and captured_rows[0][0]["author"] == "alice"
+    assert sender.messages[0]["content"] == "## backend renderer report"

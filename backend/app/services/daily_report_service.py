@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import json
-import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 from fastapi import Depends
@@ -13,16 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.db.models import ReviewRecord
 from app.db.session import get_db
+from app.review.reporting.daily_report_renderer import DailyReportRenderer
 from app.services.review_notification_service import ReviewNotificationSender
-
-
-def _ensure_codereview_on_path() -> None:
-    project_root = Path(__file__).resolve().parents[3]
-    codereview_dir = project_root / "codereview"
-    codereview_path = str(codereview_dir)
-    if codereview_path not in sys.path:
-        sys.path.insert(0, codereview_path)
-    (project_root / "backend" / "log").mkdir(parents=True, exist_ok=True)
 
 
 @dataclass(slots=True)
@@ -43,23 +32,6 @@ class DailyReportRow:
             "project_name": self.project_name,
             "updated_at": int(self.updated_at.timestamp()),
         }
-
-
-class LegacyDailyReportReporter:
-    """Bridge backend daily report generation to the existing codereview reporter."""
-
-    def __init__(self) -> None:
-        self._reporter: Any | None = None
-
-    def generate_report(self, rows: list[dict[str, Any]]) -> str:
-        if self._reporter is None:
-            _ensure_codereview_on_path()
-            from biz.utils.reporter import Reporter  # noqa: PLC0415
-
-            self._reporter = Reporter()
-        return self._reporter.generate_report(json.dumps(rows, ensure_ascii=False))
-
-
 class DailyReportService:
     """基于 PostgreSQL 中的 review_records 生成并发送日报。"""
 
@@ -108,7 +80,7 @@ class DailyReportService:
         if not rows:
             return None
 
-        reporter = self.reporter or LegacyDailyReportReporter()
+        reporter = self.reporter or DailyReportRenderer()
         report_content = reporter.generate_report(rows)
         self.sender.send_env_fallback(
             content=report_content,
