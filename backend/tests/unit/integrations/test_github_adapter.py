@@ -244,6 +244,60 @@ def test_github_adapter_fetches_pull_request_commits(monkeypatch: pytest.MonkeyP
     ]
 
 
+def test_github_adapter_fetches_push_changes_from_commit_api_for_initial_branch_push(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_urls: list[str] = []
+
+    def fake_urlopen(request, timeout: int = 10):
+        del timeout
+        captured_urls.append(request.full_url)
+        return _FakeResponse(
+            {
+                "files": [
+                    {
+                        "filename": "README.md",
+                        "patch": "+hello",
+                        "status": "modified",
+                        "additions": 1,
+                        "deletions": 0,
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("app.integrations.github.urlopen", fake_urlopen)
+    adapter = GitHubIntegrationAdapter(access_token="gh-token")
+    record = ReviewRecord(
+        event_type="push",
+        platform_type="github",
+        last_commit_id="86617ef4dd4d15088d455731a9cc9b5954ccaa91",
+        webhook_data={
+            "before": "0000000000000000000000000000000000000000",
+            "after": "86617ef4dd4d15088d455731a9cc9b5954ccaa91",
+            "commits": [{"id": "86617ef4dd4d15088d455731a9cc9b5954ccaa91"}],
+            "repository": {"full_name": "acme/review-bot"},
+        },
+        url="https://github.com/acme/review-bot",
+    )
+
+    files = adapter.fetch_changes(record)
+
+    assert files == [
+        {
+            "old_path": "README.md",
+            "new_path": "README.md",
+            "diff": "+hello",
+            "status": "modified",
+            "additions": 1,
+            "deletions": 0,
+        }
+    ]
+    assert captured_urls == [
+        "https://api.github.com/repos/acme/review-bot/commits/86617ef4dd4d15088d455731a9cc9b5954ccaa91"
+    ]
+
+
 def test_github_adapter_posts_pull_request_comment(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 

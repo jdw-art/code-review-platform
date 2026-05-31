@@ -98,6 +98,13 @@ class GitHubIntegrationAdapter(BaseIntegrationAdapter):
             after = self._optional_text(record.webhook_data.get("after")) or record.last_commit_id
             if not after or record.webhook_data.get("deleted") is True:
                 return []
+            if self._is_initial_push_before_sha(before):
+                data = self._request_json(
+                    f"{self._resolve_api_base_url(record)}/repos/{repo_full_name}/commits/{after}"
+                )
+                if not isinstance(data, dict):
+                    return []
+                return self._normalize_pull_request_files(data.get("files"))
             if before:
                 data = self._request_json(
                     f"{self._resolve_api_base_url(record)}/repos/{repo_full_name}/compare/{before}...{after}"
@@ -220,6 +227,10 @@ class GitHubIntegrationAdapter(BaseIntegrationAdapter):
         if self.access_token:
             return self.access_token
         raise ValueError("Missing GitHub access token")
+
+    @staticmethod
+    def _is_initial_push_before_sha(before: str | None) -> bool:
+        return bool(before) and set(before) == {"0"}
 
     @staticmethod
     def _require_repo_full_name(record: ReviewRecord) -> str:

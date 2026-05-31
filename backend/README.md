@@ -110,3 +110,7 @@ Notification compatibility:
 cd backend
 pytest
 ```
+
+## Verification Script
+
+Run `python scripts/verify_full_review_flow.py` from `backend/` to perform a real GitHub push-based end-to-end validation of the review pipeline. The script writes a Markdown report under `docs/verification/`.
