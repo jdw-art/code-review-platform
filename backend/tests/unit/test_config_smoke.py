@@ -63,3 +63,26 @@ def test_settings_ignore_codereview_compatibility_keys() -> None:
     )
 
     assert settings.app_name == "AI Code Reviewer"
+
+
+def test_settings_exposes_dev_worker_flags(tmp_path, monkeypatch) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "AI_CODE_REVIEWER_DEV_AUTOSTART_WORKER=1",
+                "AI_CODE_REVIEWER_USE_BACKEND_REVIEWER=0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        Settings,
+        "model_config",
+        {**Settings.model_config, "env_file": env_file},
+    )
+
+    settings = Settings()
+
+    assert settings.dev_autostart_worker is True
+    assert settings.use_backend_reviewer is False

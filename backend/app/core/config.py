@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     redis_host: str = "localhost"
     redis_port: int = 6379
     redis_db: int = 0
+    dev_autostart_worker: bool = False
+    use_backend_reviewer: bool = False
     review_queue_name: Annotated[str, Field(min_length=1)] = "review:jobs"
     review_lock_prefix: Annotated[str, Field(min_length=1)] = "review:lock"
     review_max_retries: Annotated[int, Field(ge=0)] = 3
