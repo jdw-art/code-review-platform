@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import os
 import asyncio
+import os
 from pathlib import Path
 
 from app.workers import review_worker
@@ -75,19 +75,25 @@ def test_build_review_execution_service_prepares_codereview_runtime_before_adapt
         def __init__(self) -> None:
             steps.append("adapter")
 
-    class FakeReviewer:
-        def __init__(self) -> None:
-            steps.append("reviewer")
+    def fake_build_reviewer(*, use_backend_reviewer: bool):
+        steps.append(f"reviewer:{use_backend_reviewer}")
+        return object()
 
     monkeypatch.setattr(review_worker, "_prepare_codereview_runtime", fake_prepare)
     monkeypatch.setattr(review_worker, "IntegrationAdapterRegistry", FakeAdapterRegistry)
-    monkeypatch.setattr(review_worker, "LegacyCodeReviewerAdapter", FakeReviewer)
+    monkeypatch.setattr(
+        review_worker,
+        "get_settings",
+        lambda: type("Settings", (), {"use_backend_reviewer": False})(),
+    )
+    monkeypatch.setattr(review_worker, "build_reviewer", fake_build_reviewer)
     monkeypatch.setattr(review_worker, "ReviewCommentService", lambda: object())
     monkeypatch.setattr(review_worker, "ReviewNotificationService", lambda: object())
 
     review_worker.build_review_execution_service(session=object())
 
     assert steps[0] == "prepare"
+    assert "reviewer:False" in steps
 
 
 def test_resolve_maybe_awaitable_reuses_current_event_loop() -> None:

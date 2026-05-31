@@ -11,6 +11,7 @@ from typing import Any
 from app.core.config import BACKEND_DIR
 from app.db.session import SessionLocal
 from app.integrations import INTEGRATION_ADAPTERS
+from app.review.reviewer.factory import build_reviewer
 from app.services.review_comment_service import ReviewCommentService
 from app.services.review_execution_service import ReviewExecutionService
 from app.services.review_notification_service import ReviewNotificationService
@@ -64,37 +65,6 @@ def _ensure_codereview_on_path() -> None:
     _prepare_codereview_runtime()
 
 
-class LegacyCodeReviewerAdapter:
-    """Bridge backend worker execution to the existing codereview LLM reviewer."""
-
-    def __init__(self) -> None:
-        _ensure_codereview_on_path()
-        from biz.utils.code_reviewer import CodeReviewer  # noqa: PLC0415
-
-        self._reviewer = CodeReviewer()
-
-    def review(
-        self,
-        record: Any,
-        changes: list[dict[str, Any]],
-        commits: list[dict[str, Any]],
-    ) -> str:
-        del record
-        commits_text = ";".join(
-            str(message).strip()
-            for message in (
-                commit.get("message")
-                for commit in commits
-                if isinstance(commit, dict)
-            )
-            if message
-        )
-        return self._reviewer.review_and_strip_code(str(changes), commits_text)
-
-    def parse_score(self, review_text: str) -> int:
-        return self._reviewer.parse_review_score(review_text)
-
-
 class IntegrationAdapterRegistry:
     def __init__(self) -> None:
         self._adapters = {
@@ -111,7 +81,7 @@ def build_review_execution_service(*, session) -> ReviewExecutionService:
     return ReviewExecutionService(
         session=session,
         adapter_registry=IntegrationAdapterRegistry(),
-        reviewer=LegacyCodeReviewerAdapter(),
+        reviewer=build_reviewer(use_backend_reviewer=get_settings().use_backend_reviewer),
         comment_service=ReviewCommentService(),
         notification_service=ReviewNotificationService(),
     )
