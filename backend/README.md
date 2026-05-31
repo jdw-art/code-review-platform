@@ -47,8 +47,7 @@ Recommended local development path:
 
 - Run `uvicorn app.main:app --reload` as the primary entrypoint.
 - Set `AI_CODE_REVIEWER_DEV_AUTOSTART_WORKER=1` to let the backend auto-start the review worker in development.
-- The backend native reviewer is now the default path.
-- Set `AI_CODE_REVIEWER_USE_BACKEND_REVIEWER=0` only if you also provide the legacy `codereview` runtime on Python's import path for a temporary fallback.
+- The backend native reviewer is the only runtime path.
 
 Manual worker entrypoints are still available when you want explicit process control:
 
@@ -57,8 +56,6 @@ cd backend
 python -m app.workers.review_worker
 python -m app.workers.report_worker
 ```
-
-The legacy reviewer path remains available only as a temporary fallback when `AI_CODE_REVIEWER_USE_BACKEND_REVIEWER=0`, and it still requires the legacy `codereview` package tree to be importable.
 
 The API exposes authentication routes under `/api/v1/auth`, including `/api/v1/auth/login`.
 
@@ -85,7 +82,7 @@ Platform access:
 - `GITHUB_URL`
 - `GITHUB_API_URL`
 
-codereview compatibility:
+Compatibility environment variables still supported by backend runtime:
 
 - `SUPPORTED_EXTENSIONS`
 - `MERGE_REVIEW_ONLY_PROTECTED_BRANCHES_ENABLED`
@@ -95,7 +92,7 @@ codereview compatibility:
 LLM and review generation:
 
 - `LLM_PROVIDER`
-- `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` / other provider credentials used by `codereview`
+- `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` / other provider credentials used by the backend reviewer
 
 Notification compatibility:
 

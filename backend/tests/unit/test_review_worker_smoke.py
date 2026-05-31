@@ -75,16 +75,11 @@ def test_build_review_execution_service_loads_backend_env_before_building_review
         def __init__(self) -> None:
             steps.append("adapter")
 
-    def fake_build_reviewer(*, use_backend_reviewer: bool):
-        steps.append(f"reviewer:{use_backend_reviewer}")
+    def fake_build_reviewer():
+        steps.append("reviewer")
         return object()
 
     monkeypatch.setattr(review_worker, "IntegrationAdapterRegistry", FakeAdapterRegistry)
-    monkeypatch.setattr(
-        review_worker,
-        "get_settings",
-        lambda: type("Settings", (), {"use_backend_reviewer": True})(),
-    )
     monkeypatch.setattr(review_worker, "build_reviewer", fake_build_reviewer)
     monkeypatch.setattr(review_worker, "ReviewCommentService", lambda: object())
     monkeypatch.setattr(review_worker, "ReviewNotificationService", lambda: object())
@@ -97,7 +92,7 @@ def test_build_review_execution_service_loads_backend_env_before_building_review
     review_worker.build_review_execution_service(session=object())
 
     assert steps[0] == "load-env"
-    assert "reviewer:True" in steps
+    assert "reviewer" in steps
 
 
 def test_resolve_maybe_awaitable_reuses_current_event_loop() -> None:

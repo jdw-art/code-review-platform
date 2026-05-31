@@ -10,14 +10,16 @@ from app.core.config import BACKEND_DIR
 from app.db.session import SessionLocal
 from app.integrations import INTEGRATION_ADAPTERS
 from app.review.reviewer.factory import build_reviewer
+from app.services.auth_service import get_settings
 from app.services.review_comment_service import ReviewCommentService
 from app.services.review_execution_service import ReviewExecutionService
 from app.services.review_notification_service import ReviewNotificationService
-from app.services.auth_service import get_settings
 from app.services.review_queue_service import (
     get_review_queue_redis_client,
     get_review_queue_service,
 )
+
+
 def _load_backend_env_compat() -> None:
     env_file = BACKEND_DIR / ".env"
     if not env_file.exists():
@@ -54,7 +56,7 @@ def build_review_execution_service(*, session) -> ReviewExecutionService:
     return ReviewExecutionService(
         session=session,
         adapter_registry=IntegrationAdapterRegistry(),
-        reviewer=build_reviewer(use_backend_reviewer=get_settings().use_backend_reviewer),
+        reviewer=build_reviewer(),
         comment_service=ReviewCommentService(),
         notification_service=ReviewNotificationService(),
     )

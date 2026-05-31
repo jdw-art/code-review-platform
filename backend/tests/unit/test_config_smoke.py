@@ -18,7 +18,6 @@ def test_settings_use_project_defaults():
     assert settings.redis_port == 6379
     assert settings.access_token_ttl_minutes == 15
     assert settings.refresh_token_ttl_days == 7
-    assert settings.use_backend_reviewer is True
 
 
 def test_settings_expose_secret_encryption_key() -> None:
@@ -72,7 +71,6 @@ def test_settings_exposes_dev_worker_flags(tmp_path, monkeypatch) -> None:
         "\n".join(
             [
                 "AI_CODE_REVIEWER_DEV_AUTOSTART_WORKER=1",
-                "AI_CODE_REVIEWER_USE_BACKEND_REVIEWER=0",
             ]
         ),
         encoding="utf-8",
@@ -86,4 +84,3 @@ def test_settings_exposes_dev_worker_flags(tmp_path, monkeypatch) -> None:
     settings = Settings()
 
     assert settings.dev_autostart_worker is True
-    assert settings.use_backend_reviewer is False

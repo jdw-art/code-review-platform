@@ -1,7 +1,6 @@
-from app.review.reviewer import LegacyCodeReviewerAdapter, ReviewRequest, ReviewerProtocol, build_reviewer
+from app.review.reviewer import ReviewRequest, ReviewerProtocol, build_reviewer
 
 __all__ = [
-    "LegacyCodeReviewerAdapter",
     "ReviewRequest",
     "ReviewerProtocol",
     "build_reviewer",
