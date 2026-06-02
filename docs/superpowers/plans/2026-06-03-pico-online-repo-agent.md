@@ -1,46 +1,46 @@
-# Pico Online Repo Agent Implementation Plan
+# Pico Online 仓库理解助手实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **给 agentic workers：** 必须使用子技能 `superpowers:subagent-driven-development`（推荐）或 `superpowers:executing-plans`，按任务逐项实施本计划。步骤使用 checkbox（`- [ ]`）语法跟踪进度。
 
-**Goal:** Build a read-only project-level repository understanding assistant that preserves Pico's context, memory, tool gateway, run, event, and artifact model inside the existing FastAPI code review platform.
+**目标：** 在现有 FastAPI 代码审查平台内，实现一个只读的项目级仓库理解助手，并保留 Pico 的上下文、记忆、工具网关、run、event 与 artifact 模型。
 
-**Architecture:** Add an `backend/app/agent/` domain that reuses Pico-style context and memory concepts while replacing local filesystem/session stores with PostgreSQL, GitHub/GitLab repository providers, FastAPI APIs, and SSE events. The first release is read-only: no shell, no write, no patch, no delegate, no checkpoint, and no resume.
+**架构：** 新增 `backend/app/agent/` 领域模块，复用 Pico 风格的上下文和记忆概念，同时把本地文件系统与本地 session store 替换为 PostgreSQL、GitHub/GitLab 仓库 provider、FastAPI API 与 SSE 事件。第一版严格只读：不开放 shell、不写文件、不 patch、不 delegate、不做 checkpoint、不做 resume。
 
-**Tech Stack:** FastAPI, SQLAlchemy, Alembic, PostgreSQL JSON columns, pytest, React + Vite + TypeScript, React Query, browser EventSource/SSE.
+**技术栈：** FastAPI、SQLAlchemy、Alembic、PostgreSQL JSON columns、pytest、React + Vite + TypeScript、React Query、浏览器 EventSource/SSE。
 
 ---
 
-## File Structure
+## 文件结构
 
-Create these backend domain files:
+新增这些后端领域文件：
 
-- `backend/app/db/models/agent_session.py`: Stores project-level agent sessions and Pico memory state.
-- `backend/app/db/models/agent_message.py`: Stores user-visible chat messages.
-- `backend/app/db/models/agent_run.py`: Stores one Pico-style `ask()` execution.
-- `backend/app/db/models/agent_run_event.py`: Stores trace/SSE events.
-- `backend/app/db/models/agent_artifact.py`: Stores run artifacts and tool cache entries.
-- `backend/app/db/models/repository_snapshot.py`: Stores lightweight workspace snapshots.
-- `backend/app/schemas/agent.py`: Pydantic request/response models for sessions, messages, runs, and SSE-facing event payloads.
-- `backend/app/agent/memory.py`: Pico memory state defaults and update helpers copied/adapted from `pico/pico/memory.py`.
-- `backend/app/agent/context.py`: Pico-style context assembly copied/adapted from `pico/pico/context_manager.py`.
-- `backend/app/agent/workspace.py`: Platform `WorkspaceContext` and fingerprint builder.
-- `backend/app/agent/tools.py`: Read-only tool specs and validation.
-- `backend/app/agent/tool_gateway.py`: Tool existence check, validation, repeated-call guard, authorization hook, cache, execute, sanitize, clip, record.
-- `backend/app/agent/repository_provider.py`: Provider protocol plus fake provider for tests.
-- `backend/app/agent/snapshot_service.py`: Lightweight snapshot creation and stale detection.
-- `backend/app/agent/run_service.py`: Pico-style multi-step agent run loop.
-- `backend/app/agent/event_recorder.py`: Event persistence and stream polling helpers.
-- `backend/app/services/agent_session_service.py`: Session/message/run persistence orchestration.
-- `backend/app/api/routes/agent.py`: FastAPI routes for agent sessions, messages, runs, snapshot refresh, and stream.
+- `backend/app/db/models/agent_session.py`：存储项目级 agent session 与 Pico memory state。
+- `backend/app/db/models/agent_message.py`：存储用户可见的聊天消息。
+- `backend/app/db/models/agent_run.py`：存储一次 Pico 风格的 `ask()` 执行。
+- `backend/app/db/models/agent_run_event.py`：存储 trace/SSE 事件。
+- `backend/app/db/models/agent_artifact.py`：存储 run artifacts 与工具缓存条目。
+- `backend/app/db/models/repository_snapshot.py`：存储轻量 workspace snapshot。
+- `backend/app/schemas/agent.py`：定义 session、message、run 与 SSE 事件相关的 Pydantic 请求/响应模型。
+- `backend/app/agent/memory.py`：从 `pico/pico/memory.py` 复制/改造 Pico memory state 默认值与更新 helper。
+- `backend/app/agent/context.py`：从 `pico/pico/context_manager.py` 复制/改造 Pico 风格上下文组装逻辑。
+- `backend/app/agent/workspace.py`：平台版 `WorkspaceContext` 与 fingerprint builder。
+- `backend/app/agent/tools.py`：只读工具规格与参数校验。
+- `backend/app/agent/tool_gateway.py`：工具存在性检查、参数校验、重复调用拦截、权限 hook、缓存、执行、脱敏、裁剪、记录。
+- `backend/app/agent/repository_provider.py`：provider protocol 与测试用 fake provider。
+- `backend/app/agent/snapshot_service.py`：轻量 snapshot 创建与 stale 检测。
+- `backend/app/agent/run_service.py`：Pico 风格多步 agent run loop。
+- `backend/app/agent/event_recorder.py`：事件持久化与 stream polling helper。
+- `backend/app/services/agent_session_service.py`：session/message/run 持久化编排。
+- `backend/app/api/routes/agent.py`：agent sessions、messages、runs、snapshot refresh 与 stream 的 FastAPI routes。
 
-Modify these existing backend files:
+修改这些后端文件：
 
-- `backend/app/db/models/__init__.py`: Export new ORM models.
-- `backend/app/db/base.py`: No change expected if model imports are wired through `models/__init__.py`; verify metadata discovery.
-- `backend/app/api/router.py`: Include agent router.
-- `backend/alembic/versions/0004_create_pico_online_agent_schema.py`: Create agent and snapshot tables.
+- `backend/app/db/models/__init__.py`：导出新的 ORM models。
+- `backend/app/db/base.py`：如果 model import 已通过 `models/__init__.py` 串好，预期不需要改；实施时验证 metadata discovery。
+- `backend/app/api/router.py`：include agent router。
+- `backend/alembic/versions/0004_create_pico_online_agent_schema.py`：创建 agent 与 snapshot 表。
 
-Create or modify these backend tests:
+新增或修改这些后端测试：
 
 - `backend/tests/unit/db/test_agent_models_schema.py`
 - `backend/tests/unit/agent/test_memory_context.py`
@@ -50,36 +50,36 @@ Create or modify these backend tests:
 - `backend/tests/integration/test_agent_api.py`
 - `backend/tests/integration/test_agent_sse.py`
 
-Create these frontend files:
+新增这些前端文件：
 
-- `frontend/src/features/agent/api.ts`: Agent API and EventSource helpers.
-- `frontend/src/pages/projects/ProjectAgentPage.tsx`: Repository assistant page.
-- `frontend/src/pages/projects/ProjectAgentPage.test.tsx`: Frontend behavior tests.
+- `frontend/src/features/agent/api.ts`：Agent API 与 EventSource helper。
+- `frontend/src/pages/projects/ProjectAgentPage.tsx`：仓库助手页面。
+- `frontend/src/pages/projects/ProjectAgentPage.test.tsx`：前端行为测试。
 
-Modify these frontend files:
+修改这些前端文件：
 
-- `frontend/src/routes/router.tsx`: Add project agent route.
-- `frontend/src/pages/projects/ProjectListPage.tsx`: Add entry action or link to the agent page.
-- `frontend/src/lib/api/types.ts`: Add agent response types if shared types are kept centralized.
+- `frontend/src/routes/router.tsx`：新增 project agent route。
+- `frontend/src/pages/projects/ProjectListPage.tsx`：新增进入 agent 页的操作按钮或链接。
+- `frontend/src/lib/api/types.ts`：如果共享类型集中维护，在这里新增 agent response types。
 
 ---
 
-### Task 1: Add Agent Database Schema
+### 任务 1：新增 Agent 数据库 schema
 
-**Files:**
-- Create: `backend/app/db/models/agent_session.py`
-- Create: `backend/app/db/models/agent_message.py`
-- Create: `backend/app/db/models/agent_run.py`
-- Create: `backend/app/db/models/agent_run_event.py`
-- Create: `backend/app/db/models/agent_artifact.py`
-- Create: `backend/app/db/models/repository_snapshot.py`
-- Create: `backend/alembic/versions/0004_create_pico_online_agent_schema.py`
-- Modify: `backend/app/db/models/__init__.py`
-- Test: `backend/tests/unit/db/test_agent_models_schema.py`
+**文件：**
+- 新增：`backend/app/db/models/agent_session.py`
+- 新增：`backend/app/db/models/agent_message.py`
+- 新增：`backend/app/db/models/agent_run.py`
+- 新增：`backend/app/db/models/agent_run_event.py`
+- 新增：`backend/app/db/models/agent_artifact.py`
+- 新增：`backend/app/db/models/repository_snapshot.py`
+- 新增：`backend/alembic/versions/0004_create_pico_online_agent_schema.py`
+- 修改：`backend/app/db/models/__init__.py`
+- 测试：`backend/tests/unit/db/test_agent_models_schema.py`
 
-- [ ] **Step 1: Write the failing schema test**
+- [ ] **步骤 1：先写失败的 schema 测试**
 
-Create `backend/tests/unit/db/test_agent_models_schema.py` with:
+创建 `backend/tests/unit/db/test_agent_models_schema.py`：
 
 ```python
 from __future__ import annotations
@@ -124,15 +124,15 @@ def test_agent_sessions_columns_exist(db_session) -> None:
     } <= columns
 ```
 
-- [ ] **Step 2: Run the schema test and verify it fails**
+- [ ] **步骤 2：运行测试，确认失败**
 
-Run: `cd backend && pytest tests/unit/db/test_agent_models_schema.py -q`
+运行：`cd backend && pytest tests/unit/db/test_agent_models_schema.py -q`
 
-Expected: FAIL because the agent tables do not exist.
+预期：失败，因为 agent tables 还不存在。
 
-- [ ] **Step 3: Add ORM models**
+- [ ] **步骤 3：新增 ORM models**
 
-Create `backend/app/db/models/repository_snapshot.py`:
+创建 `backend/app/db/models/repository_snapshot.py`：
 
 ```python
 from __future__ import annotations
@@ -168,7 +168,7 @@ class RepositorySnapshot(BigIntPrimaryKeyMixin, TimestampMixin, Base):
     project = relationship("Project")
 ```
 
-Create the remaining model files with the same `BigIntPrimaryKeyMixin` and `TimestampMixin` style:
+创建其他 model 文件，沿用同样的 `BigIntPrimaryKeyMixin` 与 `TimestampMixin` 风格：
 
 ```python
 # backend/app/db/models/agent_session.py
@@ -176,7 +176,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Index, String, Text, text
+from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, BigIntPrimaryKeyMixin, TimestampMixin
@@ -202,11 +202,11 @@ class AgentSession(BigIntPrimaryKeyMixin, TimestampMixin, Base):
     snapshot = relationship("RepositorySnapshot")
 ```
 
-Use equivalent definitions for `AgentMessage`, `AgentRun`, `AgentRunEvent`, and `AgentArtifact` with the fields from the approved spec.
+按照已批准 spec 中的字段，为 `AgentMessage`、`AgentRun`、`AgentRunEvent`、`AgentArtifact` 创建等价定义。
 
-- [ ] **Step 4: Export models**
+- [ ] **步骤 4：导出 models**
 
-Modify `backend/app/db/models/__init__.py` to import and include:
+修改 `backend/app/db/models/__init__.py`，新增 import：
 
 ```python
 from app.db.models.agent_artifact import AgentArtifact
@@ -217,19 +217,19 @@ from app.db.models.agent_session import AgentSession
 from app.db.models.repository_snapshot import RepositorySnapshot
 ```
 
-Add these names to `__all__`.
+同时把这些名称加入 `__all__`。
 
-- [ ] **Step 5: Add Alembic migration**
+- [ ] **步骤 5：新增 Alembic migration**
 
-Create `backend/alembic/versions/0004_create_pico_online_agent_schema.py` using `revision = "0004_pico_online_agent_schema"` and `down_revision = "0003_webhook_review_execution"`. Create the six tables, JSON defaults, foreign keys, and indexes matching the ORM models.
+创建 `backend/alembic/versions/0004_create_pico_online_agent_schema.py`，使用 `revision = "0004_pico_online_agent_schema"` 与 `down_revision = "0003_webhook_review_execution"`。创建六张表、JSON 默认值、外键和索引，字段与 ORM models 保持一致。
 
-- [ ] **Step 6: Run the schema test**
+- [ ] **步骤 6：运行 schema 测试**
 
-Run: `cd backend && pytest tests/unit/db/test_agent_models_schema.py -q`
+运行：`cd backend && pytest tests/unit/db/test_agent_models_schema.py -q`
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 7: Commit**
+- [ ] **步骤 7：提交**
 
 ```bash
 git add backend/app/db/models backend/alembic/versions/0004_create_pico_online_agent_schema.py backend/tests/unit/db/test_agent_models_schema.py
@@ -238,18 +238,18 @@ git commit -m "feat: add pico online agent schema"
 
 ---
 
-### Task 2: Add Pico-Style Memory and Context Core
+### 任务 2：新增 Pico 风格 memory 与 context core
 
-**Files:**
-- Create: `backend/app/agent/__init__.py`
-- Create: `backend/app/agent/memory.py`
-- Create: `backend/app/agent/context.py`
-- Create: `backend/app/agent/workspace.py`
-- Test: `backend/tests/unit/agent/test_memory_context.py`
+**文件：**
+- 新增：`backend/app/agent/__init__.py`
+- 新增：`backend/app/agent/memory.py`
+- 新增：`backend/app/agent/context.py`
+- 新增：`backend/app/agent/workspace.py`
+- 测试：`backend/tests/unit/agent/test_memory_context.py`
 
-- [ ] **Step 1: Write failing memory/context tests**
+- [ ] **步骤 1：先写失败的 memory/context 测试**
 
-Create `backend/tests/unit/agent/test_memory_context.py`:
+创建 `backend/tests/unit/agent/test_memory_context.py`：
 
 ```python
 from __future__ import annotations
@@ -298,15 +298,15 @@ def test_context_manager_keeps_current_request_and_workspace() -> None:
     assert metadata["prompt_chars"] == len(prompt)
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [ ] **步骤 2：运行测试，确认失败**
 
-Run: `cd backend && pytest tests/unit/agent/test_memory_context.py -q`
+运行：`cd backend && pytest tests/unit/agent/test_memory_context.py -q`
 
-Expected: FAIL because `app.agent` does not exist.
+预期：失败，因为 `app.agent` 还不存在。
 
-- [ ] **Step 3: Add memory helper**
+- [ ] **步骤 3：新增 memory helper**
 
-Create `backend/app/agent/memory.py` with:
+创建 `backend/app/agent/memory.py`：
 
 ```python
 from __future__ import annotations
@@ -327,21 +327,21 @@ def default_memory_state() -> dict[str, object]:
     }
 ```
 
-- [ ] **Step 4: Add workspace context**
+- [ ] **步骤 4：新增 workspace context**
 
-Create `backend/app/agent/workspace.py` with a dataclass that renders the platform workspace prefix and computes a deterministic fingerprint from project/snapshot payload.
+创建 `backend/app/agent/workspace.py`，实现一个 dataclass，负责渲染平台版 workspace prefix，并根据 project/snapshot payload 计算确定性的 fingerprint。
 
-- [ ] **Step 5: Add context manager**
+- [ ] **步骤 5：新增 context manager**
 
-Create `backend/app/agent/context.py` with a compact Pico-style context manager that renders `Prefix`, `Memory`, `History`, and `Current user request`, applies section budgets, and returns prompt metadata with rendered section sizes.
+创建 `backend/app/agent/context.py`，实现精简版 Pico-style context manager：渲染 `Prefix`、`Memory`、`History`、`Current user request`，应用 section budgets，并返回包含各 section 长度的 prompt metadata。
 
-- [ ] **Step 6: Run tests**
+- [ ] **步骤 6：运行测试**
 
-Run: `cd backend && pytest tests/unit/agent/test_memory_context.py -q`
+运行：`cd backend && pytest tests/unit/agent/test_memory_context.py -q`
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 7: Commit**
+- [ ] **步骤 7：提交**
 
 ```bash
 git add backend/app/agent backend/tests/unit/agent/test_memory_context.py
@@ -350,17 +350,17 @@ git commit -m "feat: add pico agent context core"
 
 ---
 
-### Task 3: Implement Read-Only Tool Gateway
+### 任务 3：实现只读工具网关
 
-**Files:**
-- Create: `backend/app/agent/tools.py`
-- Create: `backend/app/agent/tool_gateway.py`
-- Create: `backend/app/agent/repository_provider.py`
-- Test: `backend/tests/unit/agent/test_tool_gateway.py`
+**文件：**
+- 新增：`backend/app/agent/tools.py`
+- 新增：`backend/app/agent/tool_gateway.py`
+- 新增：`backend/app/agent/repository_provider.py`
+- 测试：`backend/tests/unit/agent/test_tool_gateway.py`
 
-- [ ] **Step 1: Write failing tool gateway tests**
+- [ ] **步骤 1：先写失败的工具网关测试**
 
-Create `backend/tests/unit/agent/test_tool_gateway.py` with tests for:
+创建 `backend/tests/unit/agent/test_tool_gateway.py`，覆盖：
 
 ```text
 test_gateway_rejects_unknown_tool: call gateway.execute("missing_tool", {}) and assert ValueError contains "unknown tool".
@@ -370,17 +370,15 @@ test_gateway_reuses_same_run_cache_for_same_snapshot: call read_file twice with 
 test_gateway_redacts_secret_like_output_before_returning: fake provider returns "token=sk-secret123456" and gateway output contains "<redacted>".
 ```
 
-Use a fake provider returning `"token=sk-secret123456"` and assert the returned output contains `"<redacted>"`.
+- [ ] **步骤 2：运行测试，确认失败**
 
-- [ ] **Step 2: Run tests and verify failure**
+运行：`cd backend && pytest tests/unit/agent/test_tool_gateway.py -q`
 
-Run: `cd backend && pytest tests/unit/agent/test_tool_gateway.py -q`
+预期：失败，因为工具网关还不存在。
 
-Expected: FAIL because the tool gateway does not exist.
+- [ ] **步骤 3：定义 provider protocol**
 
-- [ ] **Step 3: Define provider protocol**
-
-Create `backend/app/agent/repository_provider.py` with:
+创建 `backend/app/agent/repository_provider.py`：
 
 ```python
 from __future__ import annotations
@@ -405,27 +403,27 @@ class RepositoryContentProvider(Protocol):
         pass
 ```
 
-- [ ] **Step 4: Define read-only tools and validation**
+- [ ] **步骤 4：定义只读工具与参数校验**
 
-Create `backend/app/agent/tools.py` with specs for `list_files`, `read_file`, `search`, `get_project_overview`, and `get_recent_commits`. Implement validation for empty paths, invalid line ranges, empty search patterns, and `limit` outside `1..50`.
+创建 `backend/app/agent/tools.py`，为 `list_files`、`read_file`、`search`、`get_project_overview`、`get_recent_commits` 定义 specs。实现以下校验：空 path、非法行号范围、空 search pattern、`limit` 不在 `1..50`。
 
-- [ ] **Step 5: Implement gateway execution chain**
+- [ ] **步骤 5：实现网关执行链路**
 
-Create `backend/app/agent/tool_gateway.py` implementing:
+创建 `backend/app/agent/tool_gateway.py`，实现：
 
 ```text
 exists -> validate -> repeated guard -> cache lookup -> execute -> redact -> clip -> cache store -> return
 ```
 
-Repeated guard must match Pico's current behavior: if the last two tool history events have identical `name` and `args` to the current call, reject it.
+重复调用拦截必须匹配 Pico 当前行为：如果最近两个 tool history events 的 `name` 和 `args` 都与当前调用一致，则拒绝本次调用。
 
-- [ ] **Step 6: Run tests**
+- [ ] **步骤 6：运行测试**
 
-Run: `cd backend && pytest tests/unit/agent/test_tool_gateway.py -q`
+运行：`cd backend && pytest tests/unit/agent/test_tool_gateway.py -q`
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 7: Commit**
+- [ ] **步骤 7：提交**
 
 ```bash
 git add backend/app/agent/tools.py backend/app/agent/tool_gateway.py backend/app/agent/repository_provider.py backend/tests/unit/agent/test_tool_gateway.py
@@ -434,15 +432,15 @@ git commit -m "feat: add read-only agent tool gateway"
 
 ---
 
-### Task 4: Add Repository Snapshot Service
+### 任务 4：新增 Repository Snapshot Service
 
-**Files:**
-- Create: `backend/app/agent/snapshot_service.py`
-- Test: `backend/tests/unit/agent/test_snapshot_service.py`
+**文件：**
+- 新增：`backend/app/agent/snapshot_service.py`
+- 测试：`backend/tests/unit/agent/test_snapshot_service.py`
 
-- [ ] **Step 1: Write failing snapshot tests**
+- [ ] **步骤 1：先写失败的 snapshot tests**
 
-Create `backend/tests/unit/agent/test_snapshot_service.py` covering:
+创建 `backend/tests/unit/agent/test_snapshot_service.py`，覆盖：
 
 ```text
 test_snapshot_service_creates_ready_snapshot_for_project: create a Project and fake provider head_sha="sha1"; assert a ready RepositorySnapshot is committed.
@@ -450,15 +448,15 @@ test_snapshot_service_marks_existing_snapshot_stale_when_head_changes: seed a re
 test_snapshot_fingerprint_changes_when_head_sha_changes: call build_fingerprint twice with different head_sha values and assert the hashes differ.
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [ ] **步骤 2：运行测试，确认失败**
 
-Run: `cd backend && pytest tests/unit/agent/test_snapshot_service.py -q`
+运行：`cd backend && pytest tests/unit/agent/test_snapshot_service.py -q`
 
-Expected: FAIL because `RepositorySnapshotService` does not exist.
+预期：失败，因为 `RepositorySnapshotService` 还不存在。
 
-- [ ] **Step 3: Implement snapshot service**
+- [ ] **步骤 3：实现 snapshot service**
 
-Create `backend/app/agent/snapshot_service.py` with methods:
+创建 `backend/app/agent/snapshot_service.py`，包含方法：
 
 ```python
 class RepositorySnapshotService:
@@ -472,15 +470,15 @@ class RepositorySnapshotService:
         """Return a sha256 hash for the snapshot identity payload."""
 ```
 
-Use provider methods to fetch `head_sha`, `file_tree`, `overview`, and `recent_commits`.
+使用 provider 方法获取 `head_sha`、`file_tree`、`overview` 与 `recent_commits`。
 
-- [ ] **Step 4: Run tests**
+- [ ] **步骤 4：运行测试**
 
-Run: `cd backend && pytest tests/unit/agent/test_snapshot_service.py -q`
+运行：`cd backend && pytest tests/unit/agent/test_snapshot_service.py -q`
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 5: Commit**
+- [ ] **步骤 5：提交**
 
 ```bash
 git add backend/app/agent/snapshot_service.py backend/tests/unit/agent/test_snapshot_service.py
@@ -489,17 +487,17 @@ git commit -m "feat: add repository snapshot service"
 
 ---
 
-### Task 5: Implement Agent Run Service with Fake Model
+### 任务 5：使用 Fake Model 实现 Agent Run Service
 
-**Files:**
-- Create: `backend/app/agent/run_service.py`
-- Create: `backend/app/agent/event_recorder.py`
-- Create: `backend/app/services/agent_session_service.py`
-- Test: `backend/tests/unit/agent/test_run_service.py`
+**文件：**
+- 新增：`backend/app/agent/run_service.py`
+- 新增：`backend/app/agent/event_recorder.py`
+- 新增：`backend/app/services/agent_session_service.py`
+- 测试：`backend/tests/unit/agent/test_run_service.py`
 
-- [ ] **Step 1: Write failing run service tests**
+- [ ] **步骤 1：先写失败的 run service tests**
 
-Create `backend/tests/unit/agent/test_run_service.py` with:
+创建 `backend/tests/unit/agent/test_run_service.py`，覆盖：
 
 ```text
 test_run_service_completes_final_answer: fake model returns "Final answer"; assert run.status == "completed" and assistant message contains it.
@@ -508,17 +506,15 @@ test_run_service_stops_at_step_limit: fake model repeatedly returns a search too
 test_run_service_persists_updated_memory_state: run completes after reading README.md; assert session.memory_state["working"]["recent_files"] includes README.md.
 ```
 
-Use a fake model returning one tool call response and then a final answer.
+- [ ] **步骤 2：运行测试，确认失败**
 
-- [ ] **Step 2: Run tests and verify failure**
+运行：`cd backend && pytest tests/unit/agent/test_run_service.py -q`
 
-Run: `cd backend && pytest tests/unit/agent/test_run_service.py -q`
+预期：失败，因为 `AgentRunService` 还不存在。
 
-Expected: FAIL because `AgentRunService` does not exist.
+- [ ] **步骤 3：实现 event recorder**
 
-- [ ] **Step 3: Implement event recorder**
-
-Create `backend/app/agent/event_recorder.py` with:
+创建 `backend/app/agent/event_recorder.py`：
 
 ```python
 class AgentEventRecorder:
@@ -529,33 +525,33 @@ class AgentEventRecorder:
         """Return session events with id greater than after_id ordered by id."""
 ```
 
-- [ ] **Step 4: Implement session persistence service**
+- [ ] **步骤 4：实现 session persistence service**
 
-Create `backend/app/services/agent_session_service.py` with methods for creating sessions, messages, runs, and updating assistant messages after completion.
+创建 `backend/app/services/agent_session_service.py`，实现创建 sessions、messages、runs，以及 run 完成后更新 assistant message 的方法。
 
-- [ ] **Step 5: Implement run service**
+- [ ] **步骤 5：实现 run service**
 
-Create `backend/app/agent/run_service.py` with a bounded loop:
+创建 `backend/app/agent/run_service.py`，实现有界循环：
 
 ```text
 load run -> build context -> call fake/model client -> parse final or tool -> execute gateway -> record events -> update message/run/memory
 ```
 
-Use a simple JSON tool-call envelope for first implementation:
+第一版使用简单 JSON tool-call envelope：
 
 ```json
 {"tool": {"name": "read_file", "args": {"path": "README.md", "start": 1, "end": 20}}}
 ```
 
-Treat any non-tool text response as final answer.
+任何非 tool 文本响应都视作 final answer。
 
-- [ ] **Step 6: Run tests**
+- [ ] **步骤 6：运行测试**
 
-Run: `cd backend && pytest tests/unit/agent/test_run_service.py -q`
+运行：`cd backend && pytest tests/unit/agent/test_run_service.py -q`
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 7: Commit**
+- [ ] **步骤 7：提交**
 
 ```bash
 git add backend/app/agent/run_service.py backend/app/agent/event_recorder.py backend/app/services/agent_session_service.py backend/tests/unit/agent/test_run_service.py
@@ -564,18 +560,18 @@ git commit -m "feat: add pico-style agent run service"
 
 ---
 
-### Task 6: Add Agent API and SSE
+### 任务 6：新增 Agent API 与 SSE
 
-**Files:**
-- Create: `backend/app/schemas/agent.py`
-- Create: `backend/app/api/routes/agent.py`
-- Modify: `backend/app/api/router.py`
-- Test: `backend/tests/integration/test_agent_api.py`
-- Test: `backend/tests/integration/test_agent_sse.py`
+**文件：**
+- 新增：`backend/app/schemas/agent.py`
+- 新增：`backend/app/api/routes/agent.py`
+- 修改：`backend/app/api/router.py`
+- 测试：`backend/tests/integration/test_agent_api.py`
+- 测试：`backend/tests/integration/test_agent_sse.py`
 
-- [ ] **Step 1: Write failing API tests**
+- [ ] **步骤 1：先写失败的 API tests**
 
-Create `backend/tests/integration/test_agent_api.py` covering:
+创建 `backend/tests/integration/test_agent_api.py`，覆盖：
 
 ```text
 test_agent_session_message_and_run_flow: create a project, POST a session, POST a message, assert user_message_id, assistant_message_id, and run_id are integers.
@@ -583,19 +579,19 @@ test_agent_endpoints_require_project_read_permission: unauthenticated or limited
 test_agent_snapshot_refresh_requires_project_update_permission: user with only project:read receives 403 for snapshot refresh.
 ```
 
-- [ ] **Step 2: Write failing SSE test**
+- [ ] **步骤 2：先写失败的 SSE test**
 
-Create `backend/tests/integration/test_agent_sse.py` covering `GET /api/v1/agent/sessions/{session_id}/stream?since_event_id=0` returning SSE formatted lines for existing events.
+创建 `backend/tests/integration/test_agent_sse.py`，覆盖：`GET /api/v1/agent/sessions/{session_id}/stream?since_event_id=0` 能返回 SSE 格式的已有 events。
 
-- [ ] **Step 3: Run tests and verify failure**
+- [ ] **步骤 3：运行测试，确认失败**
 
-Run: `cd backend && pytest tests/integration/test_agent_api.py tests/integration/test_agent_sse.py -q`
+运行：`cd backend && pytest tests/integration/test_agent_api.py tests/integration/test_agent_sse.py -q`
 
-Expected: FAIL because routes do not exist.
+预期：失败，因为 routes 还不存在。
 
-- [ ] **Step 4: Add schemas**
+- [ ] **步骤 4：新增 schemas**
 
-Create `backend/app/schemas/agent.py` with request/response models:
+创建 `backend/app/schemas/agent.py`：
 
 ```python
 from __future__ import annotations
@@ -664,9 +660,9 @@ class AgentRunResponse(BaseModel):
     final_answer: str | None
 ```
 
-- [ ] **Step 5: Add routes**
+- [ ] **步骤 5：新增 routes**
 
-Create `backend/app/api/routes/agent.py` implementing the approved routes:
+创建 `backend/app/api/routes/agent.py`，实现已批准 routes：
 
 ```text
 GET    /projects/{project_id}/agent/sessions
@@ -679,11 +675,11 @@ POST   /agent/sessions/{session_id}/snapshot/refresh
 GET    /agent/runs/{run_id}
 ```
 
-Wire read routes and message creation to `require_permission("project:read")`; wire refresh to `require_permission("project:update")`.
+读路由和 message creation 使用 `require_permission("project:read")`；snapshot refresh 使用 `require_permission("project:update")`。
 
-- [ ] **Step 6: Include router**
+- [ ] **步骤 6：include router**
 
-Modify `backend/app/api/router.py`:
+修改 `backend/app/api/router.py`：
 
 ```python
 from app.api.routes.agent import router as agent_router
@@ -691,13 +687,13 @@ from app.api.routes.agent import router as agent_router
 api_router.include_router(agent_router)
 ```
 
-- [ ] **Step 7: Run API/SSE tests**
+- [ ] **步骤 7：运行 API/SSE tests**
 
-Run: `cd backend && pytest tests/integration/test_agent_api.py tests/integration/test_agent_sse.py -q`
+运行：`cd backend && pytest tests/integration/test_agent_api.py tests/integration/test_agent_sse.py -q`
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 8: Commit**
+- [ ] **步骤 8：提交**
 
 ```bash
 git add backend/app/schemas/agent.py backend/app/api/routes/agent.py backend/app/api/router.py backend/tests/integration/test_agent_api.py backend/tests/integration/test_agent_sse.py
@@ -706,19 +702,19 @@ git commit -m "feat: add agent api and event stream"
 
 ---
 
-### Task 7: Add Frontend Repository Assistant Page
+### 任务 7：新增前端仓库助手页面
 
-**Files:**
-- Create: `frontend/src/features/agent/api.ts`
-- Create: `frontend/src/pages/projects/ProjectAgentPage.tsx`
-- Create: `frontend/src/pages/projects/ProjectAgentPage.test.tsx`
-- Modify: `frontend/src/routes/router.tsx`
-- Modify: `frontend/src/pages/projects/ProjectListPage.tsx`
-- Modify: `frontend/src/lib/api/types.ts`
+**文件：**
+- 新增：`frontend/src/features/agent/api.ts`
+- 新增：`frontend/src/pages/projects/ProjectAgentPage.tsx`
+- 新增：`frontend/src/pages/projects/ProjectAgentPage.test.tsx`
+- 修改：`frontend/src/routes/router.tsx`
+- 修改：`frontend/src/pages/projects/ProjectListPage.tsx`
+- 修改：`frontend/src/lib/api/types.ts`
 
-- [ ] **Step 1: Write failing frontend test**
+- [ ] **步骤 1：先写失败的前端测试**
 
-Create `frontend/src/pages/projects/ProjectAgentPage.test.tsx` covering:
+创建 `frontend/src/pages/projects/ProjectAgentPage.test.tsx`，覆盖：
 
 ```tsx
 it("renders sessions, sends a message, and appends streamed assistant text", async () => {
@@ -726,15 +722,15 @@ it("renders sessions, sends a message, and appends streamed assistant text", asy
 });
 ```
 
-- [ ] **Step 2: Run frontend test and verify failure**
+- [ ] **步骤 2：运行前端测试，确认失败**
 
-Run: `cd frontend && npm test -- ProjectAgentPage.test.tsx --runInBand`
+运行：`cd frontend && npm test -- ProjectAgentPage.test.tsx --runInBand`
 
-Expected: FAIL because the page and API module do not exist.
+预期：失败，因为页面和 API module 还不存在。
 
-- [ ] **Step 3: Add API client**
+- [ ] **步骤 3：新增 API client**
 
-Create `frontend/src/features/agent/api.ts` with functions:
+创建 `frontend/src/features/agent/api.ts`：
 
 ```ts
 import { apiRequest } from "../../lib/api/http";
@@ -767,28 +763,28 @@ export function createAgentEventSource(sessionId: number, runId?: number) {
 }
 ```
 
-- [ ] **Step 4: Add page component**
+- [ ] **步骤 4：新增页面组件**
 
-Create `frontend/src/pages/projects/ProjectAgentPage.tsx` with:
+创建 `frontend/src/pages/projects/ProjectAgentPage.tsx`，包含：
 
-- Session list.
-- Message stream.
-- Input form.
-- Snapshot status panel.
-- Tool event panel.
-- EventSource lifecycle cleanup.
+- session 列表。
+- 消息流。
+- 输入表单。
+- snapshot 状态面板。
+- tool event 面板。
+- EventSource 生命周期 cleanup。
 
-- [ ] **Step 5: Wire route and project entry**
+- [ ] **步骤 5：接入 route 与项目入口**
 
-Add route `/projects/:projectId/agent` in `frontend/src/routes/router.tsx`. Add an action button/link from `ProjectListPage` rows to that route.
+在 `frontend/src/routes/router.tsx` 添加 `/projects/:projectId/agent` route。在 `ProjectListPage` 的行操作里添加进入该 route 的按钮或链接。
 
-- [ ] **Step 6: Run frontend tests**
+- [ ] **步骤 6：运行前端测试**
 
-Run: `cd frontend && npm test -- ProjectAgentPage.test.tsx --runInBand`
+运行：`cd frontend && npm test -- ProjectAgentPage.test.tsx --runInBand`
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 7: Commit**
+- [ ] **步骤 7：提交**
 
 ```bash
 git add frontend/src/features/agent/api.ts frontend/src/pages/projects/ProjectAgentPage.tsx frontend/src/pages/projects/ProjectAgentPage.test.tsx frontend/src/routes/router.tsx frontend/src/pages/projects/ProjectListPage.tsx frontend/src/lib/api/types.ts
@@ -797,32 +793,32 @@ git commit -m "feat: add project repository assistant page"
 
 ---
 
-### Task 8: Run Full Verification and Update Docs
+### 任务 8：运行完整验证并更新文档
 
-**Files:**
-- Modify: `backend/README.md`
-- Modify: `README.md`
-- Create: `docs/verification/2026-06-03-pico-online-agent-mvp.md`
+**文件：**
+- 修改：`backend/README.md`
+- 修改：`README.md`
+- 新增：`docs/verification/2026-06-03-pico-online-agent-mvp.md`
 
-- [ ] **Step 1: Run backend unit and integration tests**
+- [ ] **步骤 1：运行后端 unit 与 integration tests**
 
-Run: `cd backend && pytest tests/unit/agent tests/unit/db/test_agent_models_schema.py tests/integration/test_agent_api.py tests/integration/test_agent_sse.py -q`
+运行：`cd backend && pytest tests/unit/agent tests/unit/db/test_agent_models_schema.py tests/integration/test_agent_api.py tests/integration/test_agent_sse.py -q`
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 2: Run frontend tests**
+- [ ] **步骤 2：运行前端 tests**
 
-Run: `cd frontend && npm test -- --run`
+运行：`cd frontend && npm test -- --run`
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 3: Update docs**
+- [ ] **步骤 3：更新文档**
 
-Update `README.md` and `backend/README.md` with the new project-level repository assistant capability, route summary, and read-only scope.
+更新 `README.md` 与 `backend/README.md`，补充新的项目级仓库助手能力、route 摘要与只读范围。
 
-- [ ] **Step 4: Write verification note**
+- [ ] **步骤 4：写验证记录**
 
-Create `docs/verification/2026-06-03-pico-online-agent-mvp.md` with:
+创建 `docs/verification/2026-06-03-pico-online-agent-mvp.md`：
 
 ```markdown
 # Pico Online Agent MVP Verification
@@ -844,7 +840,7 @@ Both backend and frontend verification commands passed.
 - SSE stream can replay events.
 ```
 
-- [ ] **Step 5: Commit**
+- [ ] **步骤 5：提交**
 
 ```bash
 git add README.md backend/README.md docs/verification/2026-06-03-pico-online-agent-mvp.md
@@ -853,21 +849,21 @@ git commit -m "docs: verify pico online agent mvp"
 
 ---
 
-## Self-Review
+## 自检
 
-Spec coverage:
+Spec 覆盖情况：
 
-- Data model requirements are covered by Task 1.
-- Pico context and memory preservation are covered by Task 2.
-- Tool existence, validation, repeated-call guard, cache, redaction, clipping, and recording are covered by Task 3.
-- Lightweight snapshot and fingerprint strategy are covered by Task 4.
-- Multi-step run loop and memory persistence are covered by Task 5.
-- API and SSE protocol are covered by Task 6.
-- Project-level frontend entry is covered by Task 7.
-- Verification and docs are covered by Task 8.
+- 数据模型要求由任务 1 覆盖。
+- Pico context 与 memory 保留由任务 2 覆盖。
+- 工具存在性、参数校验、重复调用拦截、缓存、脱敏、裁剪、记录由任务 3 覆盖。
+- 轻量 snapshot 与 fingerprint 策略由任务 4 覆盖。
+- 多步 run loop 与 memory 持久化由任务 5 覆盖。
+- API 与 SSE 协议由任务 6 覆盖。
+- 项目级前端入口由任务 7 覆盖。
+- 验证与文档由任务 8 覆盖。
 
-Implementation boundaries:
+实施边界：
 
-- The plan keeps shell/write/patch/delegate/checkpoint/resume out of scope.
-- The plan keeps full RAG and embedding out of scope.
-- The plan uses fake model/provider tests before real provider integration to keep early tasks deterministic.
+- 本计划明确不包含 shell/write/patch/delegate/checkpoint/resume。
+- 本计划明确不包含完整 RAG 与 embedding。
+- 本计划先用 fake model/provider 测试核心链路，再接入真实 provider，以保证早期任务可确定、可验证。
