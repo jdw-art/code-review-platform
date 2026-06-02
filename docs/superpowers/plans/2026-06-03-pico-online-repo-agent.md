@@ -798,6 +798,7 @@ git commit -m "feat: add project repository assistant page"
 **文件：**
 - 修改：`backend/README.md`
 - 修改：`README.md`
+- 新增：`backend/scripts/verify_pico_online_agent_flow.py`
 - 新增：`docs/verification/2026-06-03-pico-online-agent-mvp.md`
 
 - [ ] **步骤 1：运行后端 unit 与 integration tests**
@@ -816,7 +817,45 @@ git commit -m "feat: add project repository assistant page"
 
 更新 `README.md` 与 `backend/README.md`，补充新的项目级仓库助手能力、route 摘要与只读范围。
 
-- [ ] **步骤 4：写验证记录**
+- [ ] **步骤 4：新增真实对话链路验证脚本**
+
+创建 `backend/scripts/verify_pico_online_agent_flow.py`。脚本需要在本地 backend 环境中执行一条最多 3 轮的仓库助手对话链路，并输出 Markdown 验证报告。脚本可以使用 fake model 与 fake repository provider，但必须走真实的 `AgentSessionService`、`AgentRunService`、`AgentToolGateway`、`AgentEventRecorder` 与数据库持久化。
+
+脚本至少验证这些断言：
+
+```text
+1. 正常输出：每轮 assistant message 最终状态为 completed，final_answer 非空。
+2. 流式格式：agent_run_events 中包含 run_started、assistant_delta 或 assistant_message、final，事件 sequence 单调递增。
+3. 工具调用：至少一轮包含 tool_start 与 tool_result，工具名为 read_file 或 search。
+4. prompt 组装：agent_runs.prompt_metadata 包含 prefix、memory、history、current_request 的 rendered chars 或等价 section metadata。
+5. memory 更新：第三轮结束后 agent_sessions.memory_state["working"]["recent_files"] 非空，且 task_summary 或 notes 体现本轮对话主题。
+6. 多轮连贯：第二轮和第三轮的问题使用“它/刚才/上一轮”这类指代，fake model 需要能从 prompt history 或 memory 中看到上一轮内容，并在回答中引用上一轮主题。
+```
+
+建议三轮测试问题：
+
+```text
+第一轮：这个仓库的后端入口在哪里？
+第二轮：刚才说到的入口和认证链路有什么关系？
+第三轮：基于上一轮内容，总结我应该先读哪几个文件。
+```
+
+运行：
+
+```bash
+cd backend
+python scripts/verify_pico_online_agent_flow.py
+```
+
+预期：脚本退出码为 0，并生成 `docs/verification/2026-06-03-pico-online-agent-mvp.md`。
+
+- [ ] **步骤 5：运行真实对话链路验证脚本**
+
+运行：`cd backend && python scripts/verify_pico_online_agent_flow.py`
+
+预期：通过，并生成包含 3 轮对话结果、SSE/event 格式检查、工具调用检查、prompt metadata 检查、memory 更新检查、多轮连贯性检查的 Markdown 报告。
+
+- [ ] **步骤 6：写验证记录**
 
 创建 `docs/verification/2026-06-03-pico-online-agent-mvp.md`：
 
@@ -827,10 +866,11 @@ git commit -m "feat: add project repository assistant page"
 
 - `cd backend && pytest tests/unit/agent tests/unit/db/test_agent_models_schema.py tests/integration/test_agent_api.py tests/integration/test_agent_sse.py -q`
 - `cd frontend && npm test -- --run`
+- `cd backend && python scripts/verify_pico_online_agent_flow.py`
 
 ## Result
 
-Both backend and frontend verification commands passed.
+Backend tests, frontend tests, and the real conversation flow verification script passed.
 
 ## Scope Confirmed
 
@@ -838,12 +878,22 @@ Both backend and frontend verification commands passed.
 - No shell/write/patch/delegate.
 - Session, messages, runs, events, artifacts, and snapshots persist in PostgreSQL.
 - SSE stream can replay events.
+
+## Real Conversation Flow
+
+- Round count: 3
+- Final answers: all non-empty
+- Stream events: run_started/tool_start/tool_result/assistant_delta/final observed in order
+- Tool calls: at least one read_file or search call observed
+- Prompt metadata: prefix, memory, history, and current_request sections recorded
+- Memory update: recent_files and task summary/notes updated after the run
+- Multi-turn continuity: round 2 and round 3 answers reference prior-round context
 ```
 
-- [ ] **步骤 5：提交**
+- [ ] **步骤 7：提交**
 
 ```bash
-git add README.md backend/README.md docs/verification/2026-06-03-pico-online-agent-mvp.md
+git add README.md backend/README.md backend/scripts/verify_pico_online_agent_flow.py docs/verification/2026-06-03-pico-online-agent-mvp.md
 git commit -m "docs: verify pico online agent mvp"
 ```
 
@@ -860,7 +910,7 @@ Spec 覆盖情况：
 - 多步 run loop 与 memory 持久化由任务 5 覆盖。
 - API 与 SSE 协议由任务 6 覆盖。
 - 项目级前端入口由任务 7 覆盖。
-- 验证与文档由任务 8 覆盖。
+- 验证、真实对话链路检查与文档由任务 8 覆盖。
 
 实施边界：
 
