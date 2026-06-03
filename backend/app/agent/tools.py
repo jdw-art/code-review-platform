@@ -47,49 +47,50 @@ READ_ONLY_TOOL_SPECS: dict[str, ToolSpec] = {
 
 
 def validate_tool(name: str, args: dict[str, Any] | None) -> dict[str, Any]:
-    normalized_args = dict(args or {})
     if name not in READ_ONLY_TOOL_SPECS:
         raise ValueError(f"unknown tool '{name}'")
 
     if name == "list_files":
-        path = str(normalized_args.get("path", ".")).strip()
+        path = str((args or {}).get("path", ".")).strip()
         if not path:
             raise ValueError("path must not be empty")
-        normalized_args["path"] = path
-        normalized_args["ref"] = str(normalized_args.get("ref", "main")).strip() or "main"
-        return normalized_args
+        return {
+            "path": path,
+            "ref": str((args or {}).get("ref", "main")).strip() or "main",
+        }
 
     if name == "read_file":
-        path = str(normalized_args.get("path", "")).strip()
+        path = str((args or {}).get("path", "")).strip()
         if not path:
             raise ValueError("path must not be empty")
-        start = int(normalized_args.get("start", 1))
-        end = int(normalized_args.get("end", 200))
+        start = int((args or {}).get("start", 1))
+        end = int((args or {}).get("end", 200))
         if start < 1 or end < start:
             raise ValueError("invalid line range")
-        normalized_args["path"] = path
-        normalized_args["start"] = start
-        normalized_args["end"] = end
-        normalized_args["ref"] = str(normalized_args.get("ref", "main")).strip() or "main"
-        return normalized_args
+        return {
+            "path": path,
+            "start": start,
+            "end": end,
+            "ref": str((args or {}).get("ref", "main")).strip() or "main",
+        }
 
     if name == "search":
-        pattern = str(normalized_args.get("pattern", "")).strip()
-        path = str(normalized_args.get("path", ".")).strip()
+        pattern = str((args or {}).get("pattern", "")).strip()
+        path = str((args or {}).get("path", ".")).strip()
         if not pattern:
             raise ValueError("pattern must not be empty")
         if not path:
             raise ValueError("path must not be empty")
-        normalized_args["pattern"] = pattern
-        normalized_args["path"] = path
-        normalized_args["ref"] = str(normalized_args.get("ref", "main")).strip() or "main"
-        return normalized_args
+        return {
+            "pattern": pattern,
+            "path": path,
+            "ref": str((args or {}).get("ref", "main")).strip() or "main",
+        }
 
     if name == "get_recent_commits":
-        limit = int(normalized_args.get("limit", 10))
+        limit = int((args or {}).get("limit", 10))
         if limit < 1 or limit > 50:
             raise ValueError("limit must be in [1, 50]")
-        normalized_args["limit"] = limit
-        return normalized_args
+        return {"limit": limit}
 
-    return normalized_args
+    return {}

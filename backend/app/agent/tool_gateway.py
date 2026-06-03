@@ -10,8 +10,10 @@ from app.agent.repository_provider import RepositoryContentProvider
 from app.agent.tools import READ_ONLY_TOOL_SPECS, validate_tool
 
 REDACTED_VALUE = "<redacted>"
-SECRET_SHAPED_TEXT_PATTERN = re.compile(
-    r"(?i)(\b(api[_ -]?key|token|secret|password|authorization)\b|sk-[A-Za-z0-9_-]{6,})"
+SECRET_VALUE_PATTERNS = (
+    re.compile(r"(?i)(authorization\s*:\s*bearer\s+)([^\s]+)"),
+    re.compile(r"(?i)\b(api[_ -]?key|token|secret|password)\b(\s*[:=]\s*)([^\s,;]+)"),
+    re.compile(r"(?i)\b(sk-[A-Za-z0-9_-]{6,})\b"),
 )
 
 
@@ -46,7 +48,19 @@ class AgentToolGateway:
         snapshot_id: int,
         history: list[dict[str, Any]],
     ) -> ToolExecutionResult:
-        normalized_args = validate_tool(name, args)
+        try:
+            normalized_args = validate_tool(name, args)
+        except ValueError as exc:
+            error_text = str(exc)
+            error_code = "unknown_tool" if "unknown tool" in error_text else "invalid_arguments"
+            return ToolExecutionResult(
+                name=name,
+                args=dict(args or {}),
+                output=f"error: {error_text}",
+                status="rejected",
+                cached=False,
+                error_code=error_code,
+            )
         self.authorize(name, normalized_args)
 
         if self._repeated_tool_call(history, name, normalized_args):
@@ -71,7 +85,17 @@ class AgentToolGateway:
                 error_code=cached.error_code,
             )
 
-        raw_output = self._execute_provider_tool(name, normalized_args)
+        try:
+            raw_output = self._execute_provider_tool(name, normalized_args)
+        except Exception as exc:
+            return ToolExecutionResult(
+                name=name,
+                args=normalized_args,
+                output=f"error: tool {name} failed: {exc}",
+                status="error",
+                cached=False,
+                error_code="tool_failed",
+            )
         output = self._clip(self._redact(raw_output))
         result = ToolExecutionResult(
             name=name,
@@ -84,7 +108,18 @@ class AgentToolGateway:
 
     @staticmethod
     def _repeated_tool_call(history: list[dict[str, Any]], name: str, args: dict[str, Any]) -> bool:
-        tool_events = [item for item in history if item.get("role") == "tool"]
+        tool_events = []
+        for item in history:
+            role = item.get("role")
+            if role == "tool":
+                tool_events.append(
+                    {"name": item.get("name"), "args": item.get("args", {})}
+                )
+            elif role == "tool_event":
+                payload = item.get("payload", {})
+                tool_events.append(
+                    {"name": payload.get("name"), "args": payload.get("args", {})}
+                )
         if len(tool_events) < 2:
             return False
         recent = tool_events[-2:]
@@ -123,7 +158,11 @@ class AgentToolGateway:
 
     @staticmethod
     def _redact(text: str) -> str:
-        return SECRET_SHAPED_TEXT_PATTERN.sub(REDACTED_VALUE, str(text))
+        redacted = str(text)
+        redacted = SECRET_VALUE_PATTERNS[0].sub(r"\1" + REDACTED_VALUE, redacted)
+        redacted = SECRET_VALUE_PATTERNS[1].sub(r"\1\2" + REDACTED_VALUE, redacted)
+        redacted = SECRET_VALUE_PATTERNS[2].sub(REDACTED_VALUE, redacted)
+        return redacted
 
     def _clip(self, text: str) -> str:
         if len(text) <= self.output_limit:

@@ -35,25 +35,29 @@ class FakeProvider:
 def test_gateway_rejects_unknown_tool() -> None:
     gateway = AgentToolGateway(provider=FakeProvider())
 
-    with pytest.raises(ValueError, match="unknown tool"):
-        gateway.execute(
-            "missing_tool",
-            {},
-            snapshot_id=1,
-            history=[],
-        )
+    result = gateway.execute(
+        "missing_tool",
+        {},
+        snapshot_id=1,
+        history=[],
+    )
+
+    assert result.status == "rejected"
+    assert result.error_code == "unknown_tool"
 
 
 def test_gateway_validates_read_file_line_range() -> None:
     gateway = AgentToolGateway(provider=FakeProvider())
 
-    with pytest.raises(ValueError, match="invalid line range"):
-        gateway.execute(
-            "read_file",
-            {"path": "README.md", "start": 10, "end": 1, "ref": "main"},
-            snapshot_id=1,
-            history=[],
-        )
+    result = gateway.execute(
+        "read_file",
+        {"path": "README.md", "start": 10, "end": 1, "ref": "main"},
+        snapshot_id=1,
+        history=[],
+    )
+
+    assert result.status == "rejected"
+    assert result.error_code == "invalid_arguments"
 
 
 def test_gateway_blocks_third_identical_recent_tool_call() -> None:
@@ -108,3 +112,54 @@ def test_gateway_redacts_secret_like_output_before_returning() -> None:
 
     assert "<redacted>" in result.output
     assert "sk-secret123456" not in result.output
+
+
+def test_gateway_ignores_unknown_args_when_caching_and_repeating() -> None:
+    provider = FakeProvider()
+    gateway = AgentToolGateway(provider=provider)
+
+    first = gateway.execute(
+        "read_file",
+        {
+            "path": "README.md",
+            "start": 1,
+            "end": 20,
+            "ref": "main",
+            "reason": "extra-noise",
+        },
+        snapshot_id=9,
+        history=[],
+    )
+    second = gateway.execute(
+        "read_file",
+        {"path": "README.md", "start": 1, "end": 20, "ref": "main"},
+        snapshot_id=9,
+        history=[],
+    )
+
+    history = [
+        {"role": "tool", "name": "read_file", "args": first.args},
+        {"role": "assistant", "content": "thinking"},
+        {
+            "role": "tool_event",
+            "payload": {"name": "read_file", "args": first.args},
+        },
+    ]
+    third = gateway.execute(
+        "read_file",
+        {
+            "path": "README.md",
+            "start": 1,
+            "end": 20,
+            "ref": "main",
+            "id": "noise",
+        },
+        snapshot_id=10,
+        history=history,
+    )
+
+    assert first.cached is False
+    assert second.cached is True
+    assert third.status == "rejected"
+    assert third.error_code == "repeated_identical_call"
+    assert provider.calls["read_file"] == 1
