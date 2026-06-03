@@ -7,6 +7,7 @@ import { BotListPage } from "../pages/bots/BotListPage";
 import { DashboardPage } from "../pages/dashboard/DashboardPage";
 import { ModelListPage } from "../pages/models/ModelListPage";
 import { MemberAnalyticsPage } from "../pages/analytics/MemberAnalyticsPage";
+import { ProjectAgentPage } from "../pages/projects/ProjectAgentPage";
 import { ProjectListPage } from "../pages/projects/ProjectListPage";
 import { ProjectTemplateListPage } from "../pages/projects/ProjectTemplateListPage";
 import { ReviewRecordDetailPage } from "../pages/reviews/ReviewRecordDetailPage";
@@ -93,6 +94,10 @@ export const router = createBrowserRouter([
       {
         path: "/projects",
         element: <ProjectListPage />,
+      },
+      {
+        path: "/projects/:projectId/agent",
+        element: <ProjectAgentPage />,
       },
       {
         path: "/project-templates",

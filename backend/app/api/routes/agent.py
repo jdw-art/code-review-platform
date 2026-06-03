@@ -4,7 +4,7 @@ import json
 from collections.abc import Iterator
 from typing import Any, Protocol
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -24,7 +24,10 @@ from app.schemas.agent import (
     AgentSessionCreateRequest,
     AgentSessionResponse,
 )
-from app.security.deps import require_permission
+from app.schemas.common import DomainForbiddenError, DomainUnauthorizedError
+from app.security.deps import PASSWORD_CHANGE_ALLOWED_PATHS, require_permission
+from app.security.tokens import TokenError, decode_token
+from app.services.access_context import AccessContextService
 from app.services.agent_session_service import AgentSessionService
 
 
@@ -138,6 +141,63 @@ def get_repository_provider_factory() -> RepositoryProviderFactory:
 
 def get_agent_model_client() -> AgentModelClient:
     return EchoAgentModelClient()
+
+
+async def require_agent_stream_read_permission(
+    request: Request,
+    db: Session = Depends(get_db),
+    access_context_service: AccessContextService = Depends(),
+    access_token: str | None = Query(default=None),
+) -> User:
+    token = access_token
+    if token is None:
+        authorization = request.headers.get("Authorization", "")
+        if authorization.lower().startswith("bearer "):
+            token = authorization.split(" ", 1)[1].strip() or None
+    if token is None:
+        raise DomainUnauthorizedError(
+            code="AUTHENTICATION_REQUIRED",
+            message="Authentication required.",
+        )
+
+    try:
+        claims = decode_token(token, expected_token_type="access")
+    except TokenError as exc:
+        raise DomainUnauthorizedError(
+            code="INVALID_ACCESS_TOKEN",
+            message="Invalid or expired access token.",
+        ) from exc
+    try:
+        user_id = int(claims["sub"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise DomainUnauthorizedError(
+            code="INVALID_ACCESS_TOKEN",
+            message="Invalid or expired access token.",
+        ) from exc
+
+    user = db.scalar(
+        select(User).where(
+            User.id == user_id,
+            User.is_active.is_(True),
+        )
+    )
+    if user is None:
+        raise DomainUnauthorizedError(
+            code="AUTHENTICATION_REQUIRED",
+            message="Authentication required.",
+        )
+    if user.must_change_password and request.url.path not in PASSWORD_CHANGE_ALLOWED_PATHS:
+        raise DomainForbiddenError(
+            code="PASSWORD_CHANGE_REQUIRED",
+            message="Password change required.",
+        )
+    permission_codes = await access_context_service.get_permission_codes(user.id)
+    if not user.is_superuser and "project:read" not in permission_codes:
+        raise DomainForbiddenError(
+            code="FORBIDDEN",
+            message="Forbidden.",
+        )
+    return user
 
 
 @router.get(
@@ -267,10 +327,12 @@ async def create_agent_message(
 )
 async def stream_agent_session(
     session_id: int,
+    current_user: User = Depends(require_agent_stream_read_permission),
     db: Session = Depends(get_db),
     since_event_id: int | None = Query(default=None),
     last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
 ) -> StreamingResponse:
+    del current_user
     agent_session = _get_session_or_404(db, session_id)
     after_id = since_event_id
     if after_id is None and last_event_id:

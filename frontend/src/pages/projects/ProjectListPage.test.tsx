@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 
 import { createQueryClient } from "../../lib/query/query-client";
@@ -27,7 +28,11 @@ function renderWithQuery(ui: ReactElement) {
   const queryClient = createQueryClient();
 
   return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        {ui}
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 }
 

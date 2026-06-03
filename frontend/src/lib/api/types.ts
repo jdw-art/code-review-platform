@@ -132,6 +132,54 @@ export interface ProjectResponse {
   updated_at: string;
 }
 
+export interface AgentSessionResponse {
+  id: number;
+  project_id: number;
+  title: string;
+  status: string;
+  workspace_fingerprint: string;
+  snapshot_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentMessageAcceptedResponse {
+  session_id: number;
+  user_message_id: number;
+  assistant_message_id: number;
+  run_id: number;
+  status: string;
+}
+
+export interface AgentMessageResponse {
+  id: number;
+  session_id: number;
+  run_id: number | null;
+  role: string;
+  content: string;
+  content_format: string;
+  status: string;
+  sequence: number;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AgentRunResponse {
+  id: number;
+  session_id: number;
+  project_id: number;
+  status: string;
+  stop_reason: string;
+  tool_steps: number;
+  attempts: number;
+  last_tool: string;
+  final_answer: string | null;
+  snapshot_id: number | null;
+  workspace_fingerprint: string;
+  prompt_metadata: Record<string, unknown>;
+  completion_metadata: Record<string, unknown>;
+}
+
 export interface ProjectTemplateResponse {
   id: number;
   name: string;
