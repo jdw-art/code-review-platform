@@ -269,6 +269,7 @@ class AgentRunService:
         metadata.update(
             {
                 "attempt": attempt,
+                "project_id": workspace.project_id,
                 "workspace_fingerprint": workspace.fingerprint,
                 "snapshot_id": snapshot_id,
                 "prompt": prompt,
