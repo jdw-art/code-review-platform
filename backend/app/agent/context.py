@@ -8,6 +8,7 @@ DEFAULT_TOTAL_BUDGET = 12000
 DEFAULT_SECTION_BUDGETS = {
     "prefix": 3600,
     "memory": 1600,
+    "relevant_memory": 1200,
     "history": 5200,
 }
 
@@ -19,7 +20,7 @@ def _tail_clip(text: str, limit: int) -> str:
         return text
     if limit <= 3:
         return text[:limit]
-    return text[: limit - 3] + "..."
+    return "..." + text[-(limit - 3):]
 
 
 @dataclass
@@ -49,12 +50,14 @@ class ContextManager:
 
     def build(self, user_message: str) -> tuple[str, dict[str, Any]]:
         memory_text = self._render_memory_text()
+        relevant_memory_text = self._render_relevant_memory_text()
         history_text = self._render_history_text()
         current_request = f"Current user request:\n{user_message}"
 
         rendered = {
             "prefix": self._render_section("prefix", self.workspace_text),
             "memory": self._render_section("memory", memory_text),
+            "relevant_memory": self._render_section("relevant_memory", relevant_memory_text),
             "history": self._render_section("history", history_text),
             "current_request": SectionRender(
                 raw=current_request,
@@ -89,13 +92,34 @@ class ContextManager:
         working = self.memory_state.get("working", {})
         task_summary = working.get("task_summary", "")
         recent_files = working.get("recent_files", [])
+        episodic_notes = self.memory_state.get("episodic_notes", [])
+        file_summaries = self.memory_state.get("file_summaries", {})
         file_lines = "\n".join(f"- {path}" for path in recent_files) or "- none"
+        note_lines = "\n".join(f"- {note}" for note in episodic_notes) or "- none"
+        summary_lines = "\n".join(
+            f"- {path}: {summary}"
+            for path, summary in file_summaries.items()
+        ) or "- none"
         return (
             "Memory:\n"
             f"- task_summary: {task_summary}\n"
             "- recent_files:\n"
-            f"{file_lines}"
+            f"{file_lines}\n"
+            "- episodic_notes:\n"
+            f"{note_lines}\n"
+            "- file_summaries:\n"
+            f"{summary_lines}"
         )
+
+    def _render_relevant_memory_text(self) -> str:
+        note_candidates = self.memory_state.get("notes", [])
+        lines = ["Relevant memory:"]
+        if not note_candidates:
+            lines.append("- none")
+            return "\n".join(lines)
+        for item in note_candidates:
+            lines.append(f"- {item}")
+        return "\n".join(lines)
 
     def _render_history_text(self) -> str:
         lines = ["History:"]
@@ -114,6 +138,7 @@ class ContextManager:
             [
                 rendered["prefix"].rendered,
                 rendered["memory"].rendered,
+                rendered["relevant_memory"].rendered,
                 rendered["history"].rendered,
                 rendered["current_request"].rendered,
             ]

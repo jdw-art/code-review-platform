@@ -40,6 +40,17 @@ class WorkspaceContext:
 
     @classmethod
     def build_fingerprint(cls, payload: dict[str, Any]) -> str:
+        stable_payload = {
+            "project_id": payload.get("project_id"),
+            "project_name": payload.get("project_name"),
+            "platform_type": payload.get("platform_type"),
+            "repo_url": payload.get("repo_url"),
+            "ref": payload.get("ref"),
+            "head_sha": payload.get("head_sha"),
+            "snapshot_id": payload.get("snapshot_id"),
+            "tool_signature": payload.get("tool_signature"),
+            "settings_hash": payload.get("settings_hash"),
+        }
         return hashlib.sha256(
-            json.dumps(payload, sort_keys=True).encode("utf-8")
+            json.dumps(stable_payload, sort_keys=True).encode("utf-8")
         ).hexdigest()
