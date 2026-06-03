@@ -9,6 +9,7 @@ FastAPI backend for the integrated AI code review flow. The backend now unifies:
 - review comment delivery
 - notification delivery
 - daily report generation
+- repository assistant session / run / snapshot / SSE flow
 
 ## Local setup
 
@@ -58,6 +59,35 @@ python -m app.workers.report_worker
 ```
 
 The API exposes authentication routes under `/api/v1/auth`, including `/api/v1/auth/login`.
+
+## Repository Assistant
+
+The backend now exposes a project-scoped, read-only repository assistant for reducing codebase comprehension cost in complex repos.
+
+Current boundaries:
+
+- read-only tools only: `list_files`, `read_file`, `search`, `get_project_overview`, `get_recent_commits`
+- no shell execution
+- no file writes
+- no patch / checkpoint / resume
+- session, message, run, event, artifact, and snapshot state persist in PostgreSQL
+
+Primary routes:
+
+- `GET /api/v1/projects/{project_id}/agent/sessions`
+- `POST /api/v1/projects/{project_id}/agent/sessions`
+- `GET /api/v1/agent/sessions/{session_id}`
+- `GET /api/v1/agent/sessions/{session_id}/messages`
+- `POST /api/v1/agent/sessions/{session_id}/messages`
+- `GET /api/v1/agent/sessions/{session_id}/stream`
+- `POST /api/v1/agent/sessions/{session_id}/snapshot/refresh`
+- `GET /api/v1/agent/runs/{run_id}`
+
+Notes:
+
+- the first backend version uses a lightweight repository snapshot plus on-demand file reads
+- SSE replay supports `Last-Event-ID` and `since_event_id`
+- browser EventSource can authenticate through the regular bearer header path or `access_token` query fallback
 
 ## Webhook Endpoints
 
@@ -126,3 +156,12 @@ pytest
 ## Verification Script
 
 Run `python scripts/verify_full_review_flow.py` from `backend/` to perform a real GitHub push-based end-to-end validation of the review pipeline. The script writes a Markdown report under `docs/verification/`.
+
+Run `python scripts/verify_pico_online_agent_flow.py` from `backend/` to validate the repository assistant with a real 3-turn persisted conversation flow. The script checks:
+
+- final assistant output exists for each turn
+- SSE/event formatting is replayable
+- tool calls are emitted and persisted
+- prompt metadata contains section assembly details
+- memory is updated across turns
+- later turns can reference earlier turns without losing context

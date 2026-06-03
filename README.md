@@ -26,6 +26,7 @@
 - IM notification delivery
 - daily report generation
 - 真实 `git push` 全链路验证脚本
+- 项目级只读“仓库理解助手”与多轮 SSE 对话
 
 ## 仓库导航
 
@@ -40,6 +41,7 @@
 - review execution service
 - reviewer / prompt / reporting 实现
 - admin domain 与认证授权
+- repository assistant session / run / SSE / snapshot 能力
 - 数据迁移、测试、验证脚本
 
 详细运行说明见：
@@ -124,10 +126,12 @@ uvicorn app.main:app --reload
 这条链路已经有真实验证脚本覆盖，入口在：
 
 - [backend/scripts/verify_full_review_flow.py](/Users/jacob/GitProject/ai-code-reviewer/backend/scripts/verify_full_review_flow.py)
+- [backend/scripts/verify_pico_online_agent_flow.py](/Users/jacob/GitProject/ai-code-reviewer/backend/scripts/verify_pico_online_agent_flow.py)
 
 验证结果记录见：
 
 - [docs/verification/2026-05-31-backend-single-entry-review-implementation-verification.md](/Users/jacob/GitProject/ai-code-reviewer/docs/verification/2026-05-31-backend-single-entry-review-implementation-verification.md)
+- [docs/verification/2026-06-03-pico-online-agent-mvp.md](/Users/jacob/GitProject/ai-code-reviewer/docs/verification/2026-06-03-pico-online-agent-mvp.md)
 
 
 ## 当前边界
@@ -136,6 +140,7 @@ uvicorn app.main:app --reload
 
 - GitHub
 - GitLab
+- 项目详情里的“仓库助手”只读理解场景
 
 `Gitea` 后续再补。
 

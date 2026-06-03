@@ -53,6 +53,7 @@ class AgentRunService:
             before_sequence=user_message.sequence,
         )
         memory_state = self._normalize_memory_state(agent_session.memory_state)
+        memory_state.setdefault("working", {})["task_summary"] = user_message.content[:160]
         workspace = self._build_workspace(project=project, snapshot=snapshot, settings=agent_session.settings)
         prompt, prompt_metadata = self._build_prompt(
             workspace=workspace,
@@ -359,7 +360,6 @@ class AgentRunService:
                 recent_files.append(path)
                 working["recent_files"] = recent_files[-10:]
                 memory_state.setdefault("file_summaries", {})[path] = output[:240]
-        working["task_summary"] = str(working.get("task_summary", "")) or "Repository Q&A"
         return memory_state
 
     @staticmethod
