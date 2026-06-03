@@ -511,7 +511,55 @@ PR/MR 元信息工具：
 
 第一版所有工具均为只读工具，默认 `risky=False`，但不等于无治理。
 
-### 13.3 Tool Gateway 执行顺序
+### 13.3 LLM 输出协议
+
+线上版沿用 `pico` 当前的输出协议，模型在每一轮推理后只能返回以下两种结果之一：
+
+- 一个 `<tool>...</tool>`
+- 一个 `<final>...</final>`
+
+不允许在同一轮输出中混写自然语言说明、多个工具调用、多个 `<final>`，或者把解释文字包在工具调用标签之外。
+
+第一版保留 `pico` 的 JSON 工具调用格式：
+
+```xml
+<tool>{"name":"tool_name","args":{"key":"value"}}</tool>
+```
+
+由于第一版不开放 `write_file`、`patch_file` 等多行写入工具，因此不需要启用 `pico` 本地版中为多行写操作准备的 XML 特殊格式；线上版只保留 JSON 工具调用格式即可。
+
+最终回答必须使用：
+
+```xml
+<final>your answer</final>
+```
+
+该协议对应的约束如下：
+
+- 每轮输出必须且只能包含一个顶层动作。
+- 工具名必须命中 `ToolRegistry` 白名单。
+- `args` 必须是 JSON object。
+- 必填参数不能为空。
+- 空的 `<final>` 视为无效输出。
+- 模型不得虚构工具结果或跳过工具直接声称“已经读取了仓库”。
+
+运行时解析策略也尽量贴近 `pico`：
+
+- 优先解析 `<tool>...</tool>`。
+- 若未命中合法工具输出，再解析 `<final>...</final>`。
+- 如果模型返回格式非法、工具 JSON 损坏、缺少工具名、缺少必填参数或 `<final>` 为空，则本轮记为 malformed response，并返回一条 retry notice 给模型，要求其重新输出合法协议。
+- 连续多次 malformed response 后，run 按失败或重试上限处理，并写入 `agent_run_events` 与 `report_payload`。
+
+因此，线上版的 prompt prefix 中也必须明确写入与 `pico` 一致的协议说明，包括：
+
+- 必须使用工具而不是猜测仓库内容。
+- 必须返回且只返回一个 `<tool>` 或 `<final>`。
+- 工具调用的 JSON 格式示例。
+- 最终回答的 `<final>` 格式示例。
+- 不得重复相同工具调用。
+- 不得对未执行的工具结果进行臆测。
+
+### 13.4 Tool Gateway 执行顺序
 
 Tool Gateway 建议保留 `pico` 风格的统一执行出口：
 
@@ -526,7 +574,7 @@ Tool Gateway 建议保留 `pico` 风格的统一执行出口：
 9. 更新 memory / history
 10. 将结果返回给模型
 
-### 13.4 脱敏
+### 13.5 脱敏
 
 敏感信息脱敏作为 Tool Gateway 的硬约束，覆盖：
 
@@ -540,7 +588,7 @@ Tool Gateway 建议保留 `pico` 风格的统一执行出口：
 - trace / artifact 落库的也是脱敏后的结果
 - 默认不保留未脱敏副本
 
-### 13.5 执行边界
+### 13.6 执行边界
 
 第一版明确限制：
 
@@ -742,4 +790,3 @@ Tool Gateway 建议保留 `pico` 风格的统一执行出口：
 - 为大仓库补充分层索引
 - 增加管理台 trace / artifact 浏览能力
 - 在能力稳定后，再考虑项目详情页内嵌入口
-
