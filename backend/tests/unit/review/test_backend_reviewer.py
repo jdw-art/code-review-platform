@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 import app.review.reviewer.backend_reviewer as backend_reviewer_module
+import app.llm.client_factory as llm_client_factory_module
 from app.review.llm.provider import ReviewerLLMConfig, load_reviewer_llm_config
 from app.review.reviewer.backend_reviewer import BackendCodeReviewer
 from app.review.reviewer.protocol import ReviewRequest
@@ -235,7 +236,8 @@ def test_build_llm_client_passes_httpx_client_to_anthropic(monkeypatch) -> None:
         def __init__(self, **kwargs: object) -> None:
             captured.update(kwargs)
 
-    monkeypatch.setattr(backend_reviewer_module.httpx, "Client", FakeHTTPXClient)
+    monkeypatch.setattr(llm_client_factory_module.httpx, "Client", FakeHTTPXClient)
+    monkeypatch.setattr(llm_client_factory_module, "_shared_httpx_client", None)
     monkeypatch.setitem(__import__("sys").modules, "anthropic", type("M", (), {"Anthropic": FakeAnthropic})())
 
     client = backend_reviewer_module.build_llm_client(
@@ -275,7 +277,7 @@ def test_backend_reviewer_builds_messages_and_calls_client(monkeypatch) -> None:
     assert prompt_builder.calls == [
         {
             "style": "gentle",
-            "diffs_text": "[{'new_path': 'app.py', 'diff': \"+print('ok')\"}]",
+            "diffs_text": '[\n  {\n    "new_path": "app.py",\n    "diff": "+print(\'ok\')"\n  }\n]',
             "commits_text": "feat: add login;fix: polish login",
         }
     ]
@@ -284,7 +286,7 @@ def test_backend_reviewer_builds_messages_and_calls_client(monkeypatch) -> None:
             {"role": "system", "content": "style=gentle"},
             {
                 "role": "user",
-                "content": "[{'new_path': 'app.py', 'diff': \"+print('ok')\"}]\nfeat: add login;fix: polish login",
+                "content": '[\n  {\n    "new_path": "app.py",\n    "diff": "+print(\'ok\')"\n  }\n]\nfeat: add login;fix: polish login',
             },
         ]
     ]

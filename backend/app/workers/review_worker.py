@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import os
 import time
 from typing import Any
 
 from app.core.config import BACKEND_DIR
+from app.core.env_compat import load_backend_env_compat
 from app.db.session import SessionLocal
 from app.integrations import INTEGRATION_ADAPTERS
 from app.review.reviewer.factory import build_reviewer
@@ -19,25 +19,8 @@ from app.services.review_queue_service import (
     get_review_queue_service,
 )
 
-
 def _load_backend_env_compat() -> None:
-    env_file = BACKEND_DIR / ".env"
-    if not env_file.exists():
-        return
-
-    for raw_line in env_file.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, raw_value = line.split("=", 1)
-        env_key = key.strip()
-        if not env_key or env_key in os.environ:
-            continue
-
-        value = raw_value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
-            value = value[1:-1]
-        os.environ[env_key] = value
+    load_backend_env_compat(backend_dir=BACKEND_DIR)
 
 
 class IntegrationAdapterRegistry:

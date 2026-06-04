@@ -6,6 +6,7 @@ from typing import Any
 from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import Request, urlopen
 
+from app.core.env_compat import load_backend_env_compat
 from app.db.models import ReviewRecord
 from app.integrations.base import BaseIntegrationAdapter, NormalizedWebhookEvent
 
@@ -19,6 +20,7 @@ class GitLabIntegrationAdapter(BaseIntegrationAdapter):
         access_token: str | None = None,
         base_url: str | None = None,
     ) -> None:
+        load_backend_env_compat()
         self.access_token = access_token or os.getenv("GITLAB_ACCESS_TOKEN")
         self.base_url = base_url or os.getenv("GITLAB_URL")
 
