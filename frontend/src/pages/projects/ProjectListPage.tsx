@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 import { DataTable, type DataTableColumn } from "../../components/common/DataTable";
 import { DrawerForm } from "../../components/common/DrawerForm";
@@ -208,6 +209,12 @@ export function ProjectListPage() {
           >
             编辑
           </button>
+          <Link
+            to={`/projects/${row.id}/agent`}
+            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+          >
+            仓库助手
+          </Link>
           <button
             type="button"
             onClick={() => void statusMutation.mutateAsync(row)}

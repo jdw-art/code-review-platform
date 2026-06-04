@@ -132,6 +132,49 @@ export interface ProjectResponse {
   updated_at: string;
 }
 
+export interface AgentSessionResponse {
+  id: number;
+  project_id: number;
+  title: string;
+  status: string;
+  branch: string;
+  provider: string | null;
+  model: string | null;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  last_message_at: string | null;
+}
+
+export interface AgentMessageResponse {
+  id: number;
+  session_id: number;
+  run_id: number | null;
+  role: string;
+  content: string;
+  status: string;
+  sequence: number;
+  content_format: string;
+  created_at: string;
+}
+
+export interface AgentSSEEventPayload {
+  id?: number;
+  run_id?: number;
+  session_id: number;
+  sequence?: number;
+  role?: string;
+  content?: string;
+  status?: string;
+  created_at?: string;
+  payload?: Record<string, unknown>;
+}
+
+export interface AgentSSEEvent {
+  event: string;
+  data: AgentSSEEventPayload;
+}
+
 export interface ProjectTemplateResponse {
   id: number;
   name: string;
