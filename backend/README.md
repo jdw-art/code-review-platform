@@ -126,3 +126,13 @@ pytest
 ## Verification Script
 
 Run `python scripts/verify_full_review_flow.py` from `backend/` to perform a real GitHub push-based end-to-end validation of the review pipeline. The script writes a Markdown report under `docs/verification/`.
+
+## Repo Agent
+
+平台新增了项目级仓库对话助手能力。
+
+- 入口：`/api/v1/projects/{project_id}/agent/*`
+- 形态：锁定单个分支的持续对话
+- 边界：只读仓库工具、PR/MR 元信息工具、SSE 流式回答
+- 非目标：不执行 shell、不写文件、不 patch
+- 验收：运行 `python scripts/verify_project_repo_agent_flow.py --project-id <id> --branch <branch> --base-url http://127.0.0.1:8000 --max-rounds 3` 可对当前真实仓库执行真实 LLM 多轮对话验证

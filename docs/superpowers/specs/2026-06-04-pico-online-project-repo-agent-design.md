@@ -59,6 +59,12 @@
 - 记忆层保留 `pico` 的 layered memory 结构，session memory 以 JSON 落库。
 - run / event / artifact 采用“关键索引字段结构化 + 详细内容 JSON 化”的持久化策略。
 - `workspace_fingerprint` 与 `runtime_identity_hash` 分层保留，不混成单一状态字段。
+- Repo Agent 不单独实现一套 LLM provider/config，而是与 code review 共用一层抽取后的共享 LLM 基础层。
+- 第一版 LLM 配置与 code review 保持一致，直接读取 `.env` 中的环境变量，例如：
+  - `LLM_PROVIDER=openai`
+  - `OPENAI_API_KEY=api-key`
+  - `OPENAI_API_BASE_URL=https://xxx/v1`
+  - `OPENAI_API_MODEL=gpt-5.4`
 
 ## 5. 总体方案
 
@@ -81,6 +87,7 @@
   - FastAPI routes
   - SSE event stream
   - RBAC 与审计
+  - shared LLM config / client adapter
 
 这样可以最大程度保留 `pico` 的 agent 行为，同时满足线上平台对权限、流式输出、持久化、脱敏与仓库隔离的要求。
 
@@ -108,7 +115,11 @@ Pico-derived Core
   -> WorkspaceContextBuilder
   -> ToolRegistry
   -> RuntimeIdentityBuilder
-  -> ModelClient
+  -> AgentModelClient
+
+Shared LLM Layer
+  -> load_llm_config
+  -> build_llm_client
 
 Repository Providers
   -> GitHubRepositoryProvider
@@ -149,6 +160,7 @@ Persistence
 - CLI / REPL 同步输出替换为 FastAPI API 与 SSE。
 - 本地 workspace snapshot 替换为基于项目、分支、`head_sha`、轻量快照和工具签名的线上 workspace context。
 - 本地 secret env 脱敏扩展为平台配置密钥与仓库内容统一脱敏。
+- 本地 `pico` 自带 model client 配置入口替换为平台共享的 LLM 配置解析与客户端构建逻辑，并从 `review` 业务域中解耦出来。
 
 ### 7.3 暂缓
 
@@ -559,7 +571,45 @@ PR/MR 元信息工具：
 - 不得重复相同工具调用。
 - 不得对未执行的工具结果进行臆测。
 
-### 13.4 Tool Gateway 执行顺序
+### 13.4 LLM 调用方式
+
+Repo Agent 的 LLM 调用不单独实现新的 provider 体系，而是与 code review 共用一层抽取后的共享 LLM 基础层。
+
+第一版约束如下：
+
+- Repo Agent 与 code review 共用 `LLM_PROVIDER` 配置入口。
+- Repo Agent 与 code review 共用 provider-specific 环境变量。
+- 第一版不在 session 级别开放自定义 provider、API base URL 或 model。
+- `agent_sessions.provider` 与 `agent_sessions.model` 仅记录本次会话创建时的有效配置快照，不作为独立配置源。
+
+第一版建议将当前 code review 已在使用的通用能力抽到共享层：
+
+- `backend/app/llm/provider.py`
+  - `load_llm_config()`
+- `backend/app/llm/client_factory.py`
+  - `build_llm_client(...)`
+
+`code review` 和 `Repo Agent` 都依赖这层共享 LLM 基础层，而不是让 `Repo Agent` 直接 import `backend/app/review/reviewer/backend_reviewer.py` 之类的 review 业务代码。
+
+其中 `.env` 配置方式与现有 code review 完全一致，例如：
+
+```env
+LLM_PROVIDER=openai
+OPENAI_API_KEY=api-key
+OPENAI_API_BASE_URL=https://xxx/v1
+OPENAI_API_MODEL=gpt-5.4
+```
+
+在运行时，`RunService` 的模型调用链路如下：
+
+1. `ContextManager` 组装 prompt。
+2. `RunService` 调用共享的 `build_llm_client(load_llm_config())` 生成客户端。
+3. 通过统一的 `complete()` 或等价封装向模型发起请求。
+4. 拿到原始文本后按 Pico 协议解析成 `<tool>` 或 `<final>`。
+
+这样既能避免平台中出现“code review 一套 LLM provider，Repo Agent 又一套 provider”的重复实现，也能避免 `Repo Agent` 在模块边界上直接耦合到 review 业务代码。
+
+### 13.5 Tool Gateway 执行顺序
 
 Tool Gateway 建议保留 `pico` 风格的统一执行出口：
 
@@ -574,7 +624,7 @@ Tool Gateway 建议保留 `pico` 风格的统一执行出口：
 9. 更新 memory / history
 10. 将结果返回给模型
 
-### 13.5 脱敏
+### 13.6 脱敏
 
 敏感信息脱敏作为 Tool Gateway 的硬约束，覆盖：
 
@@ -588,7 +638,7 @@ Tool Gateway 建议保留 `pico` 风格的统一执行出口：
 - trace / artifact 落库的也是脱敏后的结果
 - 默认不保留未脱敏副本
 
-### 13.6 执行边界
+### 13.7 执行边界
 
 第一版明确限制：
 
