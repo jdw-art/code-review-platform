@@ -59,6 +59,16 @@ test("根据后端契约渲染用户列表表头", async () => {
   expect(screen.getByText("超级管理员")).toBeInTheDocument();
 });
 
+test("renders console user management layout", async () => {
+  mockHttpGet
+    .mockResolvedValueOnce({ data: [] })
+    .mockResolvedValueOnce({ data: [] });
+
+  renderWithQuery(<UserListPage />);
+
+  expect(await screen.findByText("系统用户中心")).toBeInTheDocument();
+});
+
 test("点击新建用户后可以打开表单并提交创建请求", async () => {
   mockHttpGet
     .mockResolvedValueOnce({ data: [] })

@@ -46,6 +46,17 @@ beforeEach(() => {
   mockHttpDelete.mockReset();
 });
 
+test("renders console role management layout", async () => {
+  mockHttpGet
+    .mockResolvedValueOnce({ data: [] })
+    .mockResolvedValueOnce({ data: [] })
+    .mockResolvedValueOnce({ data: [] });
+
+  renderWithQuery(<RoleListPage />);
+
+  expect(await screen.findByText("角色权限矩阵")).toBeInTheDocument();
+});
+
 test("点击新建角色后可以打开表单并提交创建请求", async () => {
   mockHttpGet
     .mockResolvedValueOnce({ data: [] })

@@ -63,6 +63,23 @@ test("渲染脱敏后的模型字段而不是明文密钥", async () => {
   expect(screen.queryByText("sk-live-secret")).not.toBeInTheDocument();
 });
 
+test("renders console model cards and activation action", async () => {
+  mockHttpGet.mockResolvedValueOnce({
+    data: {
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 20,
+      total_pages: 1,
+    },
+  });
+
+  renderWithQuery(<ModelListPage />);
+
+  expect(await screen.findByText("审查模型与计算智能矩阵")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "部署新模型智算" })).toBeInTheDocument();
+});
+
 test("maps model response into console fields", () => {
   const vm = toConsoleModel({
     id: 1,

@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { DataTable, type DataTableColumn } from "../../components/common/DataTable";
 import { DrawerForm } from "../../components/common/DrawerForm";
-import { PageCard } from "../../components/common/PageCard";
+import { ConsolePageHeader } from "../../components/console/ConsolePageHeader";
 import {
   assignRoleMenus,
   assignRolePermissions,
@@ -288,26 +288,29 @@ export function RoleListPage() {
 
   return (
     <>
-      <PageCard
-        title="角色管理"
-        description="查看角色定义、权限规模以及菜单可见范围。"
-        actions={
-          <button
-            type="button"
-            onClick={openCreateDrawer}
-            className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-          >
-            新建角色
-          </button>
-        }
-      >
-        <DataTable
-          columns={roleColumns}
-          rows={data ?? []}
-          loading={isLoading}
-          emptyText="暂无角色数据"
+      <div className="space-y-4 rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-amber-50/40 p-4 shadow-sm">
+        <ConsolePageHeader
+          title="角色权限矩阵"
+          description="在这里编排角色定义、权限规模与菜单可见范围。"
+          action={
+            <button
+              type="button"
+              onClick={openCreateDrawer}
+              className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+            >
+              新建角色
+            </button>
+          }
         />
-      </PageCard>
+        <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <DataTable
+            columns={roleColumns}
+            rows={data ?? []}
+            loading={isLoading}
+            emptyText="暂无角色数据"
+          />
+        </section>
+      </div>
 
       <DrawerForm
         open={drawerOpen}

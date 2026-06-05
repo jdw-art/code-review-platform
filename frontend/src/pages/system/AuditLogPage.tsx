@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { DataTable, type DataTableColumn } from "../../components/common/DataTable";
-import { PageCard } from "../../components/common/PageCard";
+import { ConsolePageHeader } from "../../components/console/ConsolePageHeader";
 import { StatusBadge } from "../../components/common/StatusBadge";
 import { listAuditLogs } from "../../features/system/api";
 import type { AuditLogResponse } from "../../lib/api/types";
@@ -41,16 +41,19 @@ export function AuditLogPage() {
   });
 
   return (
-    <PageCard
-      title="系统日志"
-      description="查看后台关键操作的审计记录、执行人和结果状态。"
-    >
-      <DataTable
-        columns={auditLogColumns}
-        rows={data?.items ?? []}
-        loading={isLoading}
-        emptyText="暂无审计日志"
+    <div className="space-y-4 rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-violet-50/40 p-4 shadow-sm">
+      <ConsolePageHeader
+        title="审计日志观测台"
+        description="查看后台关键操作的执行人、资源类型与结果状态。"
       />
-    </PageCard>
+      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <DataTable
+          columns={auditLogColumns}
+          rows={data?.items ?? []}
+          loading={isLoading}
+          emptyText="暂无审计日志"
+        />
+      </section>
+    </div>
   );
 }

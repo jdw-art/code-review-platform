@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { DataTable, type DataTableColumn } from "../../components/common/DataTable";
 import { DrawerForm } from "../../components/common/DrawerForm";
-import { PageCard } from "../../components/common/PageCard";
+import { ConsolePageHeader } from "../../components/console/ConsolePageHeader";
 import { StatusBadge } from "../../components/common/StatusBadge";
 import {
   createProjectTemplate,
@@ -230,26 +230,29 @@ export function ProjectTemplateListPage() {
 
   return (
     <>
-      <PageCard
-        title="项目模板管理"
-        description="查看文件扩展名覆盖范围、Review 提示词配置状态与模板启停状态。"
-        actions={
-          <button
-            type="button"
-            onClick={openCreateDrawer}
-            className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-          >
-            新建模板
-          </button>
-        }
-      >
-        <DataTable
-          columns={templateColumns}
-          rows={data?.items ?? []}
-          loading={isLoading}
-          emptyText="暂无项目模板数据"
+      <div className="space-y-4 rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-emerald-50/50 p-4 shadow-sm">
+        <ConsolePageHeader
+          title="项目模板编排中心"
+          description="在此维护模板扩展名覆盖范围、Review 提示词与启停状态。"
+          action={
+            <button
+              type="button"
+              onClick={openCreateDrawer}
+              className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+            >
+              新建模板
+            </button>
+          }
         />
-      </PageCard>
+        <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <DataTable
+            columns={templateColumns}
+            rows={data?.items ?? []}
+            loading={isLoading}
+            emptyText="暂无项目模板数据"
+          />
+        </section>
+      </div>
 
       <DrawerForm
         open={drawerOpen}

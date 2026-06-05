@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { DataTable, type DataTableColumn } from "../../components/common/DataTable";
 import { DrawerForm } from "../../components/common/DrawerForm";
-import { PageCard } from "../../components/common/PageCard";
+import { ConsolePageHeader } from "../../components/console/ConsolePageHeader";
 import { StatusBadge } from "../../components/common/StatusBadge";
 import {
   assignUserRoles,
@@ -294,26 +294,29 @@ export function UserListPage() {
 
   return (
     <>
-      <PageCard
-        title="用户管理"
-        description="查看系统用户账号、角色分配和启用状态。"
-        actions={
-          <button
-            type="button"
-            onClick={openCreateDrawer}
-            className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-          >
-            新建用户
-          </button>
-        }
-      >
-        <DataTable
-          columns={userColumns}
-          rows={data ?? []}
-          loading={isLoading}
-          emptyText="暂无用户数据"
+      <div className="space-y-4 rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-sky-50/50 p-4 shadow-sm">
+        <ConsolePageHeader
+          title="系统用户中心"
+          description="在此维护后台账号、超级管理员标记与角色分配。"
+          action={
+            <button
+              type="button"
+              onClick={openCreateDrawer}
+              className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+            >
+              新建用户
+            </button>
+          }
         />
-      </PageCard>
+        <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <DataTable
+            columns={userColumns}
+            rows={data ?? []}
+            loading={isLoading}
+            emptyText="暂无用户数据"
+          />
+        </section>
+      </div>
 
       <DrawerForm
         open={drawerOpen}

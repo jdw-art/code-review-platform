@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { DataTable, type DataTableColumn } from "../../components/common/DataTable";
 import { DrawerForm } from "../../components/common/DrawerForm";
-import { PageCard } from "../../components/common/PageCard";
+import { ConsolePageHeader } from "../../components/console/ConsolePageHeader";
 import { StatusBadge } from "../../components/common/StatusBadge";
 import {
   createBot,
@@ -119,6 +119,13 @@ export function BotListPage() {
     },
   });
 
+  const testMutation = useMutation({
+    mutationFn: async (row: NotificationBotResponse) => row,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["notification-bots", "list"] });
+    },
+  });
+
   function openCreateDrawer() {
     setEditingBot(null);
     setForm(emptyBotForm);
@@ -201,6 +208,13 @@ export function BotListPage() {
           </button>
           <button
             type="button"
+            onClick={() => void testMutation.mutateAsync(row)}
+            className="rounded-full border border-cyan-200 px-3 py-1 text-xs text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-50"
+          >
+            测试
+          </button>
+          <button
+            type="button"
             onClick={() => void statusMutation.mutateAsync(row)}
             className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
           >
@@ -213,26 +227,29 @@ export function BotListPage() {
 
   return (
     <>
-      <PageCard
-        title="通知机器人"
-        description="查看不同通知渠道的 webhook 配置、脱敏 secret 与最近测试结果。"
-        actions={
-          <button
-            type="button"
-            onClick={openCreateDrawer}
-            className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-          >
-            新建机器人
-          </button>
-        }
-      >
-        <DataTable
-          columns={botColumns}
-          rows={data?.items ?? []}
-          loading={isLoading}
-          emptyText="暂无机器人配置"
+      <div className="space-y-4 rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-cyan-50/50 p-4 shadow-sm">
+        <ConsolePageHeader
+          title="通知机器人控制台"
+          description="在这里维护通知渠道配置、脱敏 secret 与测试状态回显。"
+          action={
+            <button
+              type="button"
+              onClick={openCreateDrawer}
+              className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+            >
+              新建机器人
+            </button>
+          }
         />
-      </PageCard>
+        <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <DataTable
+            columns={botColumns}
+            rows={data?.items ?? []}
+            loading={isLoading}
+            emptyText="暂无机器人配置"
+          />
+        </section>
+      </div>
 
       <DrawerForm
         open={drawerOpen}

@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { DataTable, type DataTableColumn } from "../../components/common/DataTable";
 import { DrawerForm } from "../../components/common/DrawerForm";
-import { PageCard } from "../../components/common/PageCard";
+import { ConsolePageHeader } from "../../components/console/ConsolePageHeader";
 import { StatusBadge } from "../../components/common/StatusBadge";
 import {
   createModel,
@@ -223,26 +223,29 @@ export function ModelListPage() {
 
   return (
     <>
-      <PageCard
-        title="模型管理"
-        description="查看模型提供方、连接状态与脱敏后的密钥摘要。"
-        actions={
-          <button
-            type="button"
-            onClick={openCreateDrawer}
-            className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-          >
-            新建模型
-          </button>
-        }
-      >
-        <DataTable
-          columns={modelColumns}
-          rows={data?.items ?? []}
-          loading={isLoading}
-          emptyText="暂无模型配置"
+      <div className="space-y-4 rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-cyan-50/40 p-4 shadow-sm">
+        <ConsolePageHeader
+          title="审查模型与计算智能矩阵"
+          description="在这里维护模型提供方、连接状态与脱敏后的密钥摘要。"
+          action={
+            <button
+              type="button"
+              onClick={openCreateDrawer}
+              className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+            >
+              部署新模型智算
+            </button>
+          }
         />
-      </PageCard>
+        <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <DataTable
+            columns={modelColumns}
+            rows={data?.items ?? []}
+            loading={isLoading}
+            emptyText="暂无模型配置"
+          />
+        </section>
+      </div>
 
       <DrawerForm
         open={drawerOpen}
