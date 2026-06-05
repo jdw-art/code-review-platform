@@ -227,7 +227,21 @@ test("renders the project agent console title for dynamic project routes", async
           visible: true,
           redirect: null,
           meta: null,
-          children: [],
+          children: [
+            {
+              id: 2,
+              parent_id: 1,
+              name: "项目智能体",
+              path: "/projects/1/agent",
+              component: null,
+              icon: "bot",
+              sort: 20,
+              visible: true,
+              redirect: null,
+              meta: null,
+              children: [],
+            },
+          ],
         },
       ],
       must_change_password: false,
@@ -238,4 +252,5 @@ test("renders the project agent console title for dynamic project routes", async
 
   expect((await screen.findAllByText("项目管理")).length).toBeGreaterThanOrEqual(2);
   expect(screen.getByText("项目智能体内容")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "项目智能体" })).toHaveClass("bg-indigo-50");
 });

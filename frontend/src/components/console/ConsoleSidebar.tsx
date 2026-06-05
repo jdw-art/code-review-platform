@@ -43,6 +43,16 @@ function sortMenus(menus: MenuNode[]) {
   return [...menus].filter((menu) => menu.visible).sort((left, right) => left.sort - right.sort);
 }
 
+function resolveMenuMatchPath(path: string) {
+  const projectAgentMatch = matchPath({ path: "/projects/:projectId/agent", end: false }, path);
+
+  if (projectAgentMatch !== null) {
+    return "/projects/:projectId/agent";
+  }
+
+  return path;
+}
+
 export function ConsoleSidebar({
   menus,
   username,
@@ -129,10 +139,11 @@ function SidebarItem({
   const location = useLocation();
   const Icon = resolveIcon(menu.icon);
   const children = sortMenus(menu.children);
-  const isCurrentRoute = matchPath({ path: menu.path, end: true }, location.pathname) !== null;
+  const isCurrentRoute =
+    matchPath({ path: resolveMenuMatchPath(menu.path), end: true }, location.pathname) !== null;
   const isChildRouteActive = children.some(
     (child) =>
-      matchPath({ path: child.path, end: false }, location.pathname) !== null
+      matchPath({ path: resolveMenuMatchPath(child.path), end: false }, location.pathname) !== null
   );
   const isActive = isCurrentRoute || isChildRouteActive;
 
