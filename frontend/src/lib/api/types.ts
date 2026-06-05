@@ -115,6 +115,14 @@ export interface ProjectTemplateOptionsResponse {
   prompt_metadata_presets: Record<string, string[]>;
 }
 
+export interface ProjectSettingsResponse {
+  language?: string | null;
+  owner?: string | null;
+  average_score?: number | null;
+  last_review_at?: string | null;
+  [key: string]: unknown;
+}
+
 export interface ProjectResponse {
   id: number;
   name: string;
@@ -126,7 +134,7 @@ export interface ProjectResponse {
   is_active: boolean;
   review_enabled: boolean;
   template: ProjectTemplateSummary | null;
-  settings: Record<string, unknown>;
+  settings: ProjectSettingsResponse;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -204,6 +212,7 @@ export interface LlmModelResponse {
   prompt_template: string | null;
   is_default: boolean;
   is_active: boolean;
+  queries_count?: number | null;
   last_test_status: string | null;
   last_test_message: string | null;
   last_test_at: string | null;
@@ -251,6 +260,31 @@ export interface DashboardOverviewResponse {
   active_projects: number;
   total_review_records: number;
   average_score: number | null;
+  active_model_name: string | null;
+  recent_reviews: DashboardRecentReviewItem[];
+  project_chart: DashboardChartPoint[];
+  member_chart: DashboardChartPoint[];
+}
+
+export interface DashboardChartPoint {
+  name: string;
+  commits: number;
+  avg_score: number;
+  additions: number;
+  deletions: number;
+}
+
+export interface DashboardRecentReviewItem {
+  id: number;
+  project_name: string;
+  title: string | null;
+  branch: string | null;
+  commit_hash: string | null;
+  committer: string | null;
+  score: number | null;
+  review_status: string;
+  summary: string | null;
+  created_at: string;
 }
 
 export interface ReviewRecordAuthorOption {

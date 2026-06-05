@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { createQueryClient } from "../../lib/query/query-client";
+import { toConsoleProjectCard } from "../../features/projects/serializers";
 import { ProjectListPage } from "./ProjectListPage";
 import { ProjectTemplateListPage } from "./ProjectTemplateListPage";
 
@@ -149,4 +150,39 @@ test("点击新建项目后可以打开表单并提交创建请求", async () =>
       settings: {},
     });
   });
+});
+
+test("maps project response into console card fields", () => {
+  const vm = toConsoleProjectCard({
+    id: 1,
+    name: "ai-code-reviewer",
+    key: "AICR",
+    platform_type: "GitHub",
+    repo_url: "https://github.com/demo/repo.git",
+    default_branch: "main",
+    description: "demo",
+    is_active: true,
+    review_enabled: true,
+    template: {
+      id: 8,
+      name: "通用模板",
+      code: "DEFAULT_GENERAL",
+      is_active: true,
+      review_prompt_configured: true,
+    },
+    settings: {
+      language: "TypeScript",
+      owner: "jdw-art",
+      average_score: 88.5,
+      last_review_at: "2026-06-05T10:00:00Z",
+    },
+    created_by: 1,
+    created_at: "2026-06-05T10:00:00Z",
+    updated_at: "2026-06-05T10:00:00Z",
+  });
+
+  expect(vm.enabled).toBe(true);
+  expect(vm.language).toBe("TypeScript");
+  expect(vm.scoreAverage).toBe(88.5);
+  expect(vm.lastReviewAt).toContain("2026");
 });
