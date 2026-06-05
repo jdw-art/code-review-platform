@@ -42,6 +42,14 @@ function RootRedirect() {
   return <Navigate replace to={status === "authenticated" ? "/dashboard" : "/login"} />;
 }
 
+export function buildReturnToLocation(location: {
+  pathname: string;
+  search: string;
+  hash: string;
+}) {
+  return `${location.pathname}${location.search}${location.hash}`;
+}
+
 function ProtectedLayout() {
   const location = useLocation();
   const { status } = useAuth();
@@ -55,7 +63,7 @@ function ProtectedLayout() {
       <Navigate
         replace
         to="/login"
-        state={{ from: location.pathname }}
+        state={{ from: buildReturnToLocation(location) }}
       />
     );
   }

@@ -1,6 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, vi } from "vitest";
 
 import { AuthProvider } from "../../lib/auth/auth-context";
@@ -51,10 +51,22 @@ function renderLoginPage(
             <Route path="/login" element={<LoginPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/projects/:projectId/agent" element={<div>项目智能体页</div>} />
+            <Route
+              path="/review-records/:reviewRecordId"
+              element={<ReturnedLocationPage />}
+            />
           </Routes>
         </AuthProvider>
       </MemoryRouter>
     </QueryClientProvider>
+  );
+}
+
+function ReturnedLocationPage() {
+  const location = useLocation();
+
+  return (
+    <div>{`${location.pathname}${location.search}${location.hash}`}</div>
   );
 }
 
@@ -198,4 +210,52 @@ test("登录成功后返回受保护的深链接路由", async () => {
   fireEvent.click(screen.getByRole("button", { name: "进入控制台" }));
 
   expect(await screen.findByText("项目智能体页")).toBeInTheDocument();
+});
+
+test("登录成功后返回完整的深链接字符串", async () => {
+  mockHttpPost.mockResolvedValueOnce({
+    data: {
+      access_token: "access-token",
+      refresh_token: "refresh-token",
+      token_type: "bearer",
+      expires_in: 900,
+      must_change_password: false,
+    },
+  });
+  mockHttpGet.mockResolvedValueOnce({
+    data: {
+      user: {
+        id: 1,
+        username: "admin",
+        nickname: "管理员",
+        email: "admin@example.com",
+        phone: null,
+        is_active: true,
+        is_superuser: true,
+      },
+      roles: [],
+      permissions: [],
+      menus: [],
+      must_change_password: false,
+    },
+  });
+
+  renderLoginPage([
+    {
+      pathname: "/login",
+      state: { from: "/review-records/42?tab=diff#comments" },
+    },
+  ]);
+
+  fireEvent.change(screen.getByLabelText("用户名"), {
+    target: { value: "admin" },
+  });
+  fireEvent.change(screen.getByLabelText("密码"), {
+    target: { value: "jdw112233" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "进入控制台" }));
+
+  expect(
+    await screen.findByText("/review-records/42?tab=diff#comments")
+  ).toBeInTheDocument();
 });

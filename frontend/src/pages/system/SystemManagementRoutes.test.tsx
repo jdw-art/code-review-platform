@@ -5,7 +5,7 @@ import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, vi } from "vitest";
 
 import { createQueryClient } from "../../lib/query/query-client";
-import { routeConfig } from "../../routes/router";
+import { buildReturnToLocation, routeConfig } from "../../routes/router";
 
 const { authState, mockHttpGet } = vi.hoisted(() => ({
   authState: {
@@ -144,4 +144,14 @@ test("审计日志别名路由重定向后渲染控制台标题和激活导航",
 
   expect((await screen.findAllByText("系统审计日志")).length).toBeGreaterThanOrEqual(2);
   expect(screen.getByRole("link", { name: "系统审计日志" })).toHaveClass("bg-indigo-50");
+});
+
+test("受保护路由返回地址保留完整深链接", () => {
+  expect(
+    buildReturnToLocation({
+      pathname: "/review-records/42",
+      search: "?tab=diff",
+      hash: "#comments",
+    })
+  ).toBe("/review-records/42?tab=diff#comments");
 });
