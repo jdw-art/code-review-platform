@@ -45,22 +45,24 @@ async function renderAppAt(path: string) {
   render(<App />);
 }
 
-test("用户管理路由渲染对应页面标题", async () => {
+test("用户中心路由渲染控制台标题", async () => {
   mockHttpGet.mockResolvedValueOnce({
     data: [],
   });
 
   await renderAppAt("/system/users");
 
-  expect(await screen.findByText("用户管理")).toBeInTheDocument();
+  expect(await screen.findByText("系统用户中心")).toBeInTheDocument();
+  expect(screen.getByText("用户管理")).toBeInTheDocument();
 });
 
-test("角色管理路由渲染对应页面标题", async () => {
+test("角色矩阵路由渲染控制台标题", async () => {
   mockHttpGet.mockResolvedValueOnce({
     data: [],
   });
 
   await renderAppAt("/system/roles");
 
-  expect(await screen.findByText("角色管理")).toBeInTheDocument();
+  expect(await screen.findByText("智能角色矩阵")).toBeInTheDocument();
+  expect(screen.getByText("角色管理")).toBeInTheDocument();
 });

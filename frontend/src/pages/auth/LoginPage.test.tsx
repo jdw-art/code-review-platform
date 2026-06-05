@@ -81,13 +81,18 @@ test("提交登录表单后保存令牌", async () => {
 
   renderLoginPage();
 
+  expect(screen.getByText("AI Code Review Console")).toBeInTheDocument();
+  expect(screen.getByText("超级管理员")).toBeInTheDocument();
+  expect(screen.getByText("开发工程师")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "进入控制台" })).toBeInTheDocument();
+
   fireEvent.change(screen.getByLabelText("用户名"), {
     target: { value: "admin" },
   });
   fireEvent.change(screen.getByLabelText("密码"), {
     target: { value: "jdw112233" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "登录" }));
+  fireEvent.click(screen.getByRole("button", { name: "进入控制台" }));
 
   await waitFor(() => {
     expect(http.post).toHaveBeenCalledWith("/auth/login", {
@@ -135,7 +140,7 @@ test("首次登录需要改密时展示改密表单", async () => {
   fireEvent.change(screen.getByLabelText("密码"), {
     target: { value: "jdw112233" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "登录" }));
+  fireEvent.click(screen.getByRole("button", { name: "进入控制台" }));
 
   expect(await screen.findByText("首次登录需要先修改密码")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "修改密码" })).toBeInTheDocument();

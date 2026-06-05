@@ -132,6 +132,10 @@ export const router = createBrowserRouter([
         element: <Navigate replace to="/system/users" />,
       },
       {
+        path: "/system/audit-logs",
+        element: <Navigate replace to="/audit-logs" />,
+      },
+      {
         path: "/system/users",
         element: <UserListPage />,
       },

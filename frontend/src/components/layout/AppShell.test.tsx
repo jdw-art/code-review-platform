@@ -127,7 +127,7 @@ test("renders console shell navigation and topbar labels", async () => {
   renderAppShell();
 
   expect(await screen.findByText("AI Code Review")).toBeInTheDocument();
-  expect(screen.getByText("审查控制台")).toBeInTheDocument();
+  expect(screen.getByText("欢迎回来")).toBeInTheDocument();
   expect(screen.getByText("系统日志")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "退出登录" })).toBeInTheDocument();
   expect(http.get).toHaveBeenCalledWith("/me/access-context");

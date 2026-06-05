@@ -6,6 +6,19 @@ import { useLocation, useNavigate } from "react-router-dom";
 import type { ApiErrorResponse } from "../../lib/api/types";
 import { useAuth } from "../../lib/auth/auth-context";
 
+const presetAccounts = [
+  {
+    role: "超级管理员",
+    username: "admin",
+    hint: "全量管理项目、模型、系统配置与审计日志。",
+  },
+  {
+    role: "开发工程师",
+    username: "reviewer",
+    hint: "聚焦项目接入、审查记录追踪与团队协作分析。",
+  },
+] as const;
+
 function readErrorMessage(error: unknown, fallback: string) {
   if (axios.isAxiosError<ApiErrorResponse>(error)) {
     return error.response?.data.message ?? fallback;
@@ -111,26 +124,26 @@ export function LoginPage() {
     <main className="min-h-screen bg-[linear-gradient(135deg,_#e2e8f0_0%,_#f8fafc_45%,_#cffafe_100%)] px-6 py-10 text-slate-900">
       <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1.1fr_0.9fr]">
         <section className="overflow-hidden rounded-[2rem] border border-white/60 bg-slate-950 px-8 py-10 text-white shadow-[0_30px_90px_rgba(15,23,42,0.18)]">
-          <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/85">
-            管理后台骨架
-          </p>
-          <h1 className="mt-4 text-4xl font-semibold">AI Code Review</h1>
+          <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/85">Console Login</p>
+          <h1 className="mt-4 text-4xl font-semibold">AI Code Review Console</h1>
           <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
-            第二阶段先把后台管理能力落起来。当前页面已经接入 JWT 登录、refresh token、RBAC 菜单初始化，以及首次登录强制改密分支。
+            从这里进入智能审查控制台。当前认证流已接入 JWT 登录、refresh token 续期、RBAC 菜单初始化，以及首次登录强制改密分支。
           </p>
           <div className="mt-10 grid gap-4 sm:grid-cols-2">
-            <article className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <p className="text-sm font-medium text-white">认证链路</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                登录后自动恢复 access-context，必要时走 refresh token 续期。
-              </p>
-            </article>
-            <article className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <p className="text-sm font-medium text-white">权限导航</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                侧边栏入口完全由后端菜单树驱动，避免前后端菜单定义漂移。
-              </p>
-            </article>
+            {presetAccounts.map((account) => (
+              <button
+                key={account.role}
+                type="button"
+                onClick={() => updateField("username", account.username)}
+                className="rounded-3xl border border-white/10 bg-white/5 p-5 text-left transition hover:border-cyan-300/50 hover:bg-white/10"
+              >
+                <p className="text-sm font-medium text-white">{account.role}</p>
+                <p className="mt-2 text-xs uppercase tracking-[0.24em] text-cyan-200/85">
+                  {account.username}
+                </p>
+                <p className="mt-3 text-sm leading-6 text-slate-300">{account.hint}</p>
+              </button>
+            ))}
           </div>
         </section>
 
@@ -243,7 +256,7 @@ export function LoginPage() {
                 disabled={submitting || status === "loading"}
                 className="w-full rounded-2xl bg-slate-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {submitting ? "登录中..." : "登录"}
+                {submitting ? "进入中..." : "进入控制台"}
               </button>
             </form>
           )}

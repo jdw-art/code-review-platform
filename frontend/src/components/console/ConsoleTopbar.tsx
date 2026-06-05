@@ -1,5 +1,28 @@
 import { LogOut, ShieldAlert } from "lucide-react";
 import { useState } from "react";
+import { matchPath, useLocation } from "react-router-dom";
+
+const routeTitleMap = [
+  { path: "/dashboard", title: "欢迎回来" },
+  { path: "/projects", title: "项目管理" },
+  { path: "/project-templates", title: "项目模板管理" },
+  { path: "/models", title: "模型管理" },
+  { path: "/notification-bots", title: "通知机器人配置" },
+  { path: "/review-records", title: "智能审查记录" },
+  { path: "/review-records/:reviewRecordId", title: "智能审查记录" },
+  { path: "/member-analytics", title: "团队成员分析" },
+  { path: "/system/users", title: "系统用户中心" },
+  { path: "/system/roles", title: "智能角色矩阵" },
+  { path: "/audit-logs", title: "系统审计日志" },
+] as const;
+
+function resolveRouteTitle(pathname: string) {
+  const matchedRoute = routeTitleMap.find(({ path }) =>
+    matchPath({ path, end: true }, pathname)
+  );
+
+  return matchedRoute?.title ?? "欢迎回来";
+}
 
 export function ConsoleTopbar({
   username,
@@ -12,8 +35,10 @@ export function ConsoleTopbar({
   mustChangePassword: boolean;
   onLogout: () => Promise<void>;
 }) {
+  const location = useLocation();
   const [submitting, setSubmitting] = useState(false);
   const displayName = nickname?.trim() || username;
+  const routeTitle = resolveRouteTitle(location.pathname);
 
   async function handleLogout() {
     setSubmitting(true);
@@ -31,7 +56,7 @@ export function ConsoleTopbar({
           <span className="font-mono uppercase tracking-[0.28em] text-slate-400">管理台</span>
           <span className="text-slate-300">/</span>
           <span className="rounded-md border border-indigo-100 bg-indigo-50 px-2 py-1 font-semibold text-indigo-700">
-            审查控制台
+            {routeTitle}
           </span>
           {mustChangePassword ? (
             <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">

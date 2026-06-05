@@ -14,7 +14,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { NavLink, matchPath, useLocation } from "react-router-dom";
 import { useState } from "react";
 
 import type { MenuNode } from "../../lib/api/types";
@@ -126,14 +126,22 @@ function SidebarItem({
   menu: MenuNode;
   depth: number;
 }) {
+  const location = useLocation();
   const Icon = resolveIcon(menu.icon);
   const children = sortMenus(menu.children);
+  const isCurrentRoute = matchPath({ path: menu.path, end: true }, location.pathname) !== null;
+  const isChildRouteActive = children.some(
+    (child) =>
+      matchPath({ path: child.path, end: false }, location.pathname) !== null
+  );
+  const isActive = isCurrentRoute || isChildRouteActive;
 
   return (
     <div className="space-y-1">
       <NavLink
         to={menu.path}
-        className={({ isActive }) =>
+        end={children.length === 0}
+        className={() =>
           [
             "flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-medium transition-all",
             isActive
