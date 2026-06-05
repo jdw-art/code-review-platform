@@ -19,12 +19,13 @@ export function AppShell() {
     );
   }
 
-  const roleLabel = roles[0]?.name ?? "超级管理员";
+  const roleLabel = roles[0]?.name ?? (user?.is_superuser ? "超级管理员" : "未分配角色");
 
   return (
     <ConsoleShell
       menus={menuTree}
       username={user?.username ?? "unknown"}
+      nickname={user?.nickname ?? null}
       roleLabel={roleLabel}
       mustChangePassword={mustChangePassword}
       onLogout={logout}

@@ -6,9 +6,9 @@ import { ConsoleSidebar } from "../console/ConsoleSidebar";
  */
 export function SidebarNav({
   menus,
-  username = "unknown",
-  roleLabel = "超级管理员",
-  onLogout = async () => {},
+  username,
+  roleLabel,
+  onLogout,
 }: {
   menus: MenuNode[];
   username?: string;

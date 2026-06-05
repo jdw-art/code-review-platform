@@ -8,6 +8,7 @@ import { ConsoleTopbar } from "./ConsoleTopbar";
 export function ConsoleShell({
   menus,
   username,
+  nickname,
   roleLabel,
   mustChangePassword,
   onLogout,
@@ -15,6 +16,7 @@ export function ConsoleShell({
 }: {
   menus: MenuNode[];
   username: string;
+  nickname: string | null;
   roleLabel: string;
   mustChangePassword: boolean;
   onLogout: () => Promise<void>;
@@ -24,7 +26,12 @@ export function ConsoleShell({
     <div className="flex min-h-screen bg-[#f1f5f9] text-slate-800">
       <ConsoleSidebar menus={menus} username={username} roleLabel={roleLabel} onLogout={onLogout} />
       <div className="flex min-h-screen flex-1 flex-col overflow-y-auto">
-        <ConsoleTopbar mustChangePassword={mustChangePassword} onLogout={onLogout} />
+        <ConsoleTopbar
+          username={username}
+          nickname={nickname}
+          mustChangePassword={mustChangePassword}
+          onLogout={onLogout}
+        />
         <main className="flex-1 px-4 pb-10 pt-6 sm:px-6 lg:px-8">
           {children ?? <Outlet />}
         </main>

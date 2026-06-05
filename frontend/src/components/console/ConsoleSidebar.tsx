@@ -50,14 +50,17 @@ export function ConsoleSidebar({
   onLogout,
 }: {
   menus: MenuNode[];
-  username: string;
-  roleLabel: string;
-  onLogout: () => Promise<void>;
+  username?: string;
+  roleLabel?: string;
+  onLogout?: () => Promise<void>;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const sortedMenus = sortMenus(menus);
 
   async function handleLogout() {
+    if (onLogout === undefined) {
+      return;
+    }
     setSubmitting(true);
     try {
       await onLogout();
@@ -89,27 +92,29 @@ export function ConsoleSidebar({
         </nav>
       </div>
 
-      <div className="space-y-3 border-t border-slate-200/70 bg-slate-50 px-4 py-4">
-        <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5">
-          <p className="truncate text-xs font-bold uppercase text-slate-700">{username}</p>
-          <p className="mt-1 truncate text-[11px] text-slate-400">{roleLabel}</p>
+      {username && roleLabel && onLogout ? (
+        <div className="space-y-3 border-t border-slate-200/70 bg-slate-50 px-4 py-4">
+          <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5">
+            <p className="truncate text-xs font-bold uppercase text-slate-700">{username}</p>
+            <p className="mt-1 truncate text-[11px] text-slate-400">{roleLabel}</p>
+          </div>
+          <div className="flex items-center justify-between gap-2 px-1">
+            <span className="text-[10px] font-semibold tracking-[0.24em] text-slate-400">
+              CONSOLE
+            </span>
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={submitting}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+              title="退出登录"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              <span>{submitting ? "退出中..." : "退出"}</span>
+            </button>
+          </div>
         </div>
-        <div className="flex items-center justify-between gap-2 px-1">
-          <span className="text-[10px] font-semibold tracking-[0.24em] text-slate-400">
-            CONSOLE
-          </span>
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={submitting}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
-            title="退出登录"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            <span>{submitting ? "退出中..." : "退出"}</span>
-          </button>
-        </div>
-      </div>
+      ) : null}
     </aside>
   );
 }

@@ -2,13 +2,18 @@ import { LogOut, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 
 export function ConsoleTopbar({
+  username,
+  nickname,
   mustChangePassword,
   onLogout,
 }: {
+  username: string;
+  nickname: string | null;
   mustChangePassword: boolean;
   onLogout: () => Promise<void>;
 }) {
   const [submitting, setSubmitting] = useState(false);
+  const displayName = nickname?.trim() || username;
 
   async function handleLogout() {
     setSubmitting(true);
@@ -35,15 +40,20 @@ export function ConsoleTopbar({
             </span>
           ) : null}
         </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          disabled={submitting}
-          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <LogOut className="h-3.5 w-3.5" />
-          <span>{submitting ? "退出中..." : "退出登录"}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
+            {displayName}
+          </span>
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={submitting}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            <span>{submitting ? "退出中..." : "退出登录"}</span>
+          </button>
+        </div>
       </div>
     </header>
   );

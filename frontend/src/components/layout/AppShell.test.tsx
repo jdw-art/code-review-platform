@@ -134,25 +134,19 @@ test("renders console shell navigation and topbar labels", async () => {
   expect(tokenStore.load).toHaveBeenCalled();
 });
 
-test("renders password change warning when auth context requires it", async () => {
+test("renders an unassigned role label when the authenticated user has no roles", async () => {
   mockHttpGet.mockResolvedValueOnce({
     data: {
       user: {
         id: 1,
-        username: "admin",
-        nickname: "管理员",
-        email: "admin@example.com",
+        username: "reviewer",
+        nickname: "审查员",
+        email: "reviewer@example.com",
         phone: null,
         is_active: true,
-        is_superuser: true,
+        is_superuser: false,
       },
-      roles: [
-        {
-          id: 1,
-          name: "超级管理员",
-          code: "super_admin",
-        },
-      ],
+      roles: [],
       permissions: [],
       menus: [
         {
@@ -175,5 +169,7 @@ test("renders password change warning when auth context requires it", async () =
 
   renderAppShell();
 
-  expect(await screen.findByText("账号需要先修改密码")).toBeInTheDocument();
+  expect(await screen.findByText("reviewer")).toBeInTheDocument();
+  expect(screen.getByText("未分配角色")).toBeInTheDocument();
+  expect(screen.queryByText("超级管理员")).not.toBeInTheDocument();
 });
