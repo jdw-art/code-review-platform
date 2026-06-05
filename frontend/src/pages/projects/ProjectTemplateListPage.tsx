@@ -74,11 +74,13 @@ function buildUpdatePayload(
 }
 
 function buildTemplateForm(row: ProjectTemplateResponse): ProjectTemplateFormState {
+  const fileExtensions = row.file_extensions ?? [];
+
   return {
     name: row.name,
     code: row.code,
     description: row.description ?? "",
-    file_extensions_text: row.file_extensions.join(", "),
+    file_extensions_text: fileExtensions.join(", "),
     review_prompt_template: row.review_prompt_template ?? "",
     prompt_metadata_text: toPrettyJson(row.prompt_metadata),
     is_active: row.is_active,
@@ -190,7 +192,7 @@ export function ProjectTemplateListPage() {
     {
       key: "file_extensions",
       title: "文件扩展名",
-      render: (row) => row.file_extensions.join(", "),
+      render: (row) => (row.file_extensions ?? []).join(", "),
     },
     {
       key: "review_prompt_configured",

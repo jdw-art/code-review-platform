@@ -188,7 +188,7 @@ export interface ProjectTemplateResponse {
   name: string;
   code: string;
   description: string | null;
-  file_extensions: string[];
+  file_extensions?: string[] | null;
   review_prompt_template: string | null;
   review_prompt_configured: boolean;
   prompt_metadata: Record<string, unknown>;
@@ -323,7 +323,7 @@ export interface ReviewRecordListItemResponse {
   source_branch: string | null;
   target_branch: string | null;
   commit_count: number;
-  commit_messages: string[];
+  commit_messages?: string[] | null;
   score: number | null;
   review_status: string;
   review_result: string | null;
@@ -339,7 +339,7 @@ export interface ReviewRecordListItemResponse {
 
 export interface ReviewRecordDetailResponse extends ReviewRecordListItemResponse {
   review_prompt_snapshot: string | null;
-  commits: ReviewCommitResponse[];
+  commits?: ReviewCommitResponse[] | null;
 }
 
 export interface MemberAnalyticsRecentReviewResponse {
@@ -368,7 +368,7 @@ export interface MemberAnalyticsListItemResponse {
 
 export interface MemberAnalyticsDetailResponse
   extends MemberAnalyticsListItemResponse {
-  recent_reviews: MemberAnalyticsRecentReviewResponse[];
+  recent_reviews?: MemberAnalyticsRecentReviewResponse[] | null;
 }
 
 export interface PermissionResponse {
@@ -387,8 +387,8 @@ export interface RoleResponse {
   code: string;
   description: string | null;
   is_system: boolean;
-  permissions: PermissionResponse[];
-  menus: MenuNode[];
+  permissions?: PermissionResponse[] | null;
+  menus?: MenuNode[] | null;
 }
 
 export interface UserRoleSummary {
@@ -406,5 +406,5 @@ export interface UserResponse {
   is_active: boolean;
   is_superuser: boolean;
   must_change_password: boolean;
-  roles: UserRoleSummary[];
+  roles?: UserRoleSummary[] | null;
 }

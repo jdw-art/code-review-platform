@@ -4,6 +4,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { createQueryClient } from "../../lib/query/query-client";
+import type {
+  MemberAnalyticsDetailResponse,
+  ProjectTemplateResponse,
+  ReviewRecordDetailResponse,
+  ReviewRecordListItemResponse,
+  RoleResponse,
+  UserResponse,
+} from "../../lib/api/types";
 import { toConsoleDashboardOverview } from "../../features/dashboard/serializers";
 import {
   toConsoleMemberAnalyticsDetail,
@@ -259,7 +267,7 @@ test("maps dashboard and template serializers safely for partial responses", () 
     project_chart: undefined,
     member_chart: null,
   } as never);
-  const templateVm = toConsoleProjectTemplate({
+  const template: ProjectTemplateResponse = {
     id: 9,
     name: "Template",
     code: "TEMPLATE",
@@ -273,7 +281,8 @@ test("maps dashboard and template serializers safely for partial responses", () 
     created_by: null,
     created_at: "2026-06-05T10:00:00Z",
     updated_at: "2026-06-05T10:00:00Z",
-  } as never);
+  };
+  const templateVm = toConsoleProjectTemplate(template);
 
   expect(dashboardVm.recentReviews).toEqual([]);
   expect(dashboardVm.projectChart).toEqual([]);
@@ -283,7 +292,7 @@ test("maps dashboard and template serializers safely for partial responses", () 
 });
 
 test("maps system serializers safely when nested arrays are absent", () => {
-  const userVm = toConsoleUser({
+  const user: UserResponse = {
     id: 1,
     username: "admin",
     nickname: null,
@@ -293,8 +302,8 @@ test("maps system serializers safely when nested arrays are absent", () => {
     is_superuser: true,
     must_change_password: false,
     roles: undefined,
-  } as never);
-  const roleVm = toConsoleRole({
+  };
+  const role: RoleResponse = {
     id: 1,
     name: "Admin",
     code: "admin",
@@ -302,7 +311,9 @@ test("maps system serializers safely when nested arrays are absent", () => {
     is_system: true,
     permissions: undefined,
     menus: null,
-  } as never);
+  };
+  const userVm = toConsoleUser(user);
+  const roleVm = toConsoleRole(role);
 
   expect(userVm.roles).toEqual([]);
   expect(roleVm.permissionCount).toBe(0);
@@ -310,7 +321,7 @@ test("maps system serializers safely when nested arrays are absent", () => {
 });
 
 test("maps review serializers safely when nested arrays are absent", () => {
-  const reviewVm = toConsoleReviewRecord({
+  const review: ReviewRecordListItemResponse = {
     id: 1,
     project_id: 1,
     event_type: "push",
@@ -336,8 +347,8 @@ test("maps review serializers safely when nested arrays are absent", () => {
     deletions: 0,
     created_at: "2026-06-05T10:00:00Z",
     updated_at: "2026-06-05T10:00:00Z",
-  } as never);
-  const reviewDetailVm = toConsoleReviewDetail({
+  };
+  const reviewDetail: ReviewRecordDetailResponse = {
     id: 2,
     project_id: 1,
     event_type: "merge_request",
@@ -365,7 +376,9 @@ test("maps review serializers safely when nested arrays are absent", () => {
     updated_at: "2026-06-05T10:00:00Z",
     review_prompt_snapshot: null,
     commits: undefined,
-  } as never);
+  };
+  const reviewVm = toConsoleReviewRecord(review);
+  const reviewDetailVm = toConsoleReviewDetail(reviewDetail);
 
   expect(reviewVm.commitMessages).toEqual([]);
   expect(reviewDetailVm.commitMessages).toEqual([]);
@@ -386,7 +399,7 @@ test("maps member analytics detail safely when recent reviews are absent", () =>
     total_deletions: 0,
     last_review_at: null,
   });
-  const detailVm = toConsoleMemberAnalyticsDetail({
+  const detail: MemberAnalyticsDetailResponse = {
     project_member_id: 2,
     project_id: 1,
     project_name: "demo",
@@ -399,7 +412,8 @@ test("maps member analytics detail safely when recent reviews are absent", () =>
     total_deletions: 0,
     last_review_at: null,
     recent_reviews: undefined,
-  } as never);
+  };
+  const detailVm = toConsoleMemberAnalyticsDetail(detail);
 
   expect(rowVm.totalChanges).toBe(0);
   expect(detailVm.recentReviews).toEqual([]);

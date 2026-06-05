@@ -63,6 +63,8 @@ function buildUpdatePayload(form: UserFormState) {
 }
 
 function buildUserForm(row: UserResponse): UserFormState {
+  const roles = row.roles ?? [];
+
   return {
     username: row.username,
     password: "",
@@ -70,7 +72,7 @@ function buildUserForm(row: UserResponse): UserFormState {
     email: row.email ?? "",
     phone: row.phone ?? "",
     is_superuser: row.is_superuser,
-    role_ids: row.roles.map((role) => role.id),
+    role_ids: roles.map((role) => role.id),
   };
 }
 
@@ -244,8 +246,10 @@ export function UserListPage() {
     {
       key: "roles",
       title: "角色",
-      render: (row) =>
-        row.roles.length > 0 ? row.roles.map((role) => role.name).join("、") : "未分配角色",
+      render: (row) => {
+        const roles = row.roles ?? [];
+        return roles.length > 0 ? roles.map((role) => role.name).join("、") : "未分配角色";
+      },
     },
     {
       key: "is_superuser",

@@ -57,19 +57,23 @@ const reviewRecordColumns: DataTableColumn<ReviewRecordListItemResponse>[] = [
   {
     key: "commit_messages",
     title: "提交信息",
-    render: (row) => (
-      <div className="space-y-1">
-        {row.commit_messages.length > 0 ? (
-          row.commit_messages.slice(0, 2).map((message) => (
+    render: (row) => {
+      const commitMessages = row.commit_messages ?? [];
+
+      return (
+        <div className="space-y-1">
+          {commitMessages.length > 0 ? (
+            commitMessages.slice(0, 2).map((message) => (
             <p key={message} className="max-w-xl truncate text-sm text-slate-700">
               {message}
             </p>
-          ))
-        ) : (
-          <span className="text-slate-500">暂无提交信息</span>
-        )}
-      </div>
-    ),
+            ))
+          ) : (
+            <span className="text-slate-500">暂无提交信息</span>
+          )}
+        </div>
+      );
+    },
   },
   {
     key: "review_status",

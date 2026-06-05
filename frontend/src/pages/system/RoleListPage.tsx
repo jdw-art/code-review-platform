@@ -39,12 +39,15 @@ const emptyRoleForm: RoleFormState = {
 };
 
 function buildRoleForm(row: RoleResponse): RoleFormState {
+  const permissions = row.permissions ?? [];
+  const menus = row.menus ?? [];
+
   return {
     name: row.name,
     code: row.code,
     description: row.description ?? "",
-    permission_ids: row.permissions.map((item) => item.id),
-    menu_ids: collectMenuIds(row.menus),
+    permission_ids: permissions.map((item) => item.id),
+    menu_ids: collectMenuIds(menus),
   };
 }
 
@@ -241,12 +244,12 @@ export function RoleListPage() {
     {
       key: "permissions",
       title: "权限数",
-      render: (row) => row.permissions.length,
+      render: (row) => (row.permissions ?? []).length,
     },
     {
       key: "menus",
       title: "菜单数",
-      render: (row) => collectMenuIds(row.menus).length,
+      render: (row) => collectMenuIds(row.menus ?? []).length,
     },
     {
       key: "is_system",
