@@ -36,8 +36,12 @@ export function toConsoleMemberAnalyticsRow(
 export function toConsoleMemberAnalyticsDetail(
   member: MemberAnalyticsDetailResponse
 ) {
+  const recentReviews = Array.isArray(member.recent_reviews)
+    ? member.recent_reviews
+    : [];
+
   return {
     ...toConsoleMemberAnalyticsRow(member),
-    recentReviews: member.recent_reviews,
+    recentReviews,
   };
 }

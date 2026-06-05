@@ -17,6 +17,12 @@ export interface ConsoleReviewRecord {
 export function toConsoleReviewRecord(
   review: ReviewRecordListItemResponse
 ): ConsoleReviewRecord {
+  const commitMessages = Array.isArray(review.commit_messages)
+    ? review.commit_messages.filter(
+        (message): message is string => typeof message === "string"
+      )
+    : [];
+
   return {
     id: review.id,
     projectName: review.project_name_snapshot,
@@ -25,15 +31,17 @@ export function toConsoleReviewRecord(
     score: review.score,
     status: review.review_status,
     updatedAt: review.updated_at,
-    commitMessages: review.commit_messages,
+    commitMessages,
   };
 }
 
 export function toConsoleReviewDetail(review: ReviewRecordDetailResponse) {
+  const commits = Array.isArray(review.commits) ? review.commits : [];
+
   return {
     ...toConsoleReviewRecord(review),
     reviewPromptSnapshot: review.review_prompt_snapshot,
-    commits: review.commits,
+    commits,
     summary: review.summary,
   };
 }

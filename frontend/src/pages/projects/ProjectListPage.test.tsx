@@ -5,8 +5,16 @@ import { vi } from "vitest";
 
 import { createQueryClient } from "../../lib/query/query-client";
 import { toConsoleDashboardOverview } from "../../features/dashboard/serializers";
+import {
+  toConsoleMemberAnalyticsDetail,
+  toConsoleMemberAnalyticsRow,
+} from "../../features/member-analytics/serializers";
 import { toConsoleProjectTemplate } from "../../features/project-templates/serializers";
 import { toConsoleProjectCard } from "../../features/projects/serializers";
+import {
+  toConsoleReviewDetail,
+  toConsoleReviewRecord,
+} from "../../features/reviews/serializers";
 import { toConsoleRole, toConsoleUser } from "../../features/system/serializers";
 import { ProjectListPage } from "./ProjectListPage";
 import { ProjectTemplateListPage } from "./ProjectTemplateListPage";
@@ -299,4 +307,100 @@ test("maps system serializers safely when nested arrays are absent", () => {
   expect(userVm.roles).toEqual([]);
   expect(roleVm.permissionCount).toBe(0);
   expect(roleVm.menuCount).toBe(0);
+});
+
+test("maps review serializers safely when nested arrays are absent", () => {
+  const reviewVm = toConsoleReviewRecord({
+    id: 1,
+    project_id: 1,
+    event_type: "push",
+    external_event_id: null,
+    project_name_snapshot: "demo",
+    template_id_snapshot: null,
+    template_name_snapshot: null,
+    author: "alice",
+    title: null,
+    branch: null,
+    source_branch: null,
+    target_branch: null,
+    commit_count: 0,
+    commit_messages: undefined,
+    score: null,
+    review_status: "pending",
+    review_result: null,
+    summary: null,
+    url: null,
+    url_slug: null,
+    last_commit_id: null,
+    additions: 0,
+    deletions: 0,
+    created_at: "2026-06-05T10:00:00Z",
+    updated_at: "2026-06-05T10:00:00Z",
+  } as never);
+  const reviewDetailVm = toConsoleReviewDetail({
+    id: 2,
+    project_id: 1,
+    event_type: "merge_request",
+    external_event_id: null,
+    project_name_snapshot: "demo",
+    template_id_snapshot: null,
+    template_name_snapshot: null,
+    author: "bob",
+    title: null,
+    branch: null,
+    source_branch: null,
+    target_branch: null,
+    commit_count: 0,
+    commit_messages: null,
+    score: null,
+    review_status: "pending",
+    review_result: null,
+    summary: null,
+    url: null,
+    url_slug: null,
+    last_commit_id: null,
+    additions: 0,
+    deletions: 0,
+    created_at: "2026-06-05T10:00:00Z",
+    updated_at: "2026-06-05T10:00:00Z",
+    review_prompt_snapshot: null,
+    commits: undefined,
+  } as never);
+
+  expect(reviewVm.commitMessages).toEqual([]);
+  expect(reviewDetailVm.commitMessages).toEqual([]);
+  expect(reviewDetailVm.commits).toEqual([]);
+});
+
+test("maps member analytics detail safely when recent reviews are absent", () => {
+  const rowVm = toConsoleMemberAnalyticsRow({
+    project_member_id: 1,
+    project_id: 1,
+    project_name: "demo",
+    member_name: "alice",
+    member_email: null,
+    role_name: null,
+    review_count: 0,
+    average_score: null,
+    total_additions: 0,
+    total_deletions: 0,
+    last_review_at: null,
+  });
+  const detailVm = toConsoleMemberAnalyticsDetail({
+    project_member_id: 2,
+    project_id: 1,
+    project_name: "demo",
+    member_name: "bob",
+    member_email: null,
+    role_name: null,
+    review_count: 0,
+    average_score: null,
+    total_additions: 0,
+    total_deletions: 0,
+    last_review_at: null,
+    recent_reviews: undefined,
+  } as never);
+
+  expect(rowVm.totalChanges).toBe(0);
+  expect(detailVm.recentReviews).toEqual([]);
 });
