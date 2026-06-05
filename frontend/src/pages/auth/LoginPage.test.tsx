@@ -35,19 +35,22 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function renderLoginPage() {
+function renderLoginPage(
+  initialEntries: Array<string | { pathname: string; state?: unknown }> = ["/login"]
+) {
   const queryClient = createQueryClient();
 
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter
-        initialEntries={["/login"]}
+        initialEntries={initialEntries}
         future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
       >
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/projects/:projectId/agent" element={<div>项目智能体页</div>} />
           </Routes>
         </AuthProvider>
       </MemoryRouter>
@@ -149,4 +152,50 @@ test("首次登录需要改密时展示改密表单", async () => {
   expect(await screen.findByText("首次登录需要先修改密码")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "修改密码" })).toBeInTheDocument();
   expect(http.get).toHaveBeenCalledWith("/me/profile");
+});
+
+test("登录成功后返回受保护的深链接路由", async () => {
+  mockHttpPost.mockResolvedValueOnce({
+    data: {
+      access_token: "access-token",
+      refresh_token: "refresh-token",
+      token_type: "bearer",
+      expires_in: 900,
+      must_change_password: false,
+    },
+  });
+  mockHttpGet.mockResolvedValueOnce({
+    data: {
+      user: {
+        id: 1,
+        username: "admin",
+        nickname: "管理员",
+        email: "admin@example.com",
+        phone: null,
+        is_active: true,
+        is_superuser: true,
+      },
+      roles: [],
+      permissions: [],
+      menus: [],
+      must_change_password: false,
+    },
+  });
+
+  renderLoginPage([
+    {
+      pathname: "/login",
+      state: { from: "/projects/42/agent" },
+    },
+  ]);
+
+  fireEvent.change(screen.getByLabelText("用户名"), {
+    target: { value: "admin" },
+  });
+  fireEvent.change(screen.getByLabelText("密码"), {
+    target: { value: "jdw112233" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "进入控制台" }));
+
+  expect(await screen.findByText("项目智能体页")).toBeInTheDocument();
 });

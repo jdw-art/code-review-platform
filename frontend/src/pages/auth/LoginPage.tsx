@@ -81,12 +81,7 @@ export function LoginPage() {
     setErrorMessage(null);
     setSuccessMessage(null);
     try {
-      const result = await login(form);
-      if (!result.mustChangePassword) {
-        startTransition(() => {
-          navigate("/dashboard", { replace: true });
-        });
-      }
+      await login(form);
     } catch (error) {
       setErrorMessage(readErrorMessage(error, "登录失败，请稍后再试。"));
     } finally {
