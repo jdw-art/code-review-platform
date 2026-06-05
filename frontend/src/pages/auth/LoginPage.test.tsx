@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { vi } from "vitest";
+import { afterEach, vi } from "vitest";
 
 import { AuthProvider } from "../../lib/auth/auth-context";
 import { http } from "../../lib/api/http";
@@ -30,6 +30,10 @@ vi.mock("../../lib/api/http", () => ({
 vi.mock("../../lib/auth/token-store", () => ({
   tokenStore: mockTokenStore,
 }));
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 function renderLoginPage() {
   const queryClient = createQueryClient();
@@ -82,8 +86,8 @@ test("提交登录表单后保存令牌", async () => {
   renderLoginPage();
 
   expect(screen.getByText("AI Code Review Console")).toBeInTheDocument();
-  expect(screen.getByText("超级管理员")).toBeInTheDocument();
-  expect(screen.getByText("开发工程师")).toBeInTheDocument();
+  expect(screen.getByText("默认引导账号")).toBeInTheDocument();
+  expect(screen.getByText("admin / jdw112233")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "进入控制台" })).toBeInTheDocument();
 
   fireEvent.change(screen.getByLabelText("用户名"), {

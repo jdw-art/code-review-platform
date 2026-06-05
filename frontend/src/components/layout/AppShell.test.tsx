@@ -58,6 +58,27 @@ function renderAppShell() {
   );
 }
 
+function renderAppShellAt(path: string) {
+  const queryClient = createQueryClient();
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter
+        initialEntries={[path]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <AuthProvider>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route path="/projects/:projectId/agent" element={<div>项目智能体内容</div>} />
+            </Route>
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+}
+
 test("renders console shell navigation and topbar labels", async () => {
   mockHttpGet.mockResolvedValueOnce({
     data: {
@@ -172,4 +193,49 @@ test("renders an unassigned role label when the authenticated user has no roles"
   expect(await screen.findByText("reviewer")).toBeInTheDocument();
   expect(screen.getByText("未分配角色")).toBeInTheDocument();
   expect(screen.queryByText("超级管理员")).not.toBeInTheDocument();
+});
+
+test("renders the project agent console title for dynamic project routes", async () => {
+  mockHttpGet.mockResolvedValueOnce({
+    data: {
+      user: {
+        id: 1,
+        username: "admin",
+        nickname: "管理员",
+        email: "admin@example.com",
+        phone: null,
+        is_active: true,
+        is_superuser: true,
+      },
+      roles: [
+        {
+          id: 1,
+          name: "超级管理员",
+          code: "super_admin",
+        },
+      ],
+      permissions: [],
+      menus: [
+        {
+          id: 1,
+          parent_id: null,
+          name: "项目管理",
+          path: "/projects",
+          component: null,
+          icon: "folder-kanban",
+          sort: 10,
+          visible: true,
+          redirect: null,
+          meta: null,
+          children: [],
+        },
+      ],
+      must_change_password: false,
+    },
+  });
+
+  renderAppShellAt("/projects/42/agent");
+
+  expect((await screen.findAllByText("项目管理")).length).toBeGreaterThanOrEqual(2);
+  expect(screen.getByText("项目智能体内容")).toBeInTheDocument();
 });

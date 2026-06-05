@@ -5,6 +5,7 @@ import { matchPath, useLocation } from "react-router-dom";
 const routeTitleMap = [
   { path: "/dashboard", title: "欢迎回来" },
   { path: "/projects", title: "项目管理" },
+  { path: "/projects/:projectId/agent", title: "项目管理" },
   { path: "/project-templates", title: "项目模板管理" },
   { path: "/models", title: "模型管理" },
   { path: "/notification-bots", title: "通知机器人配置" },

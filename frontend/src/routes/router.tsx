@@ -1,4 +1,10 @@
-import { createBrowserRouter, Navigate, Outlet, useLocation } from "react-router-dom";
+import {
+  createBrowserRouter,
+  Navigate,
+  Outlet,
+  useLocation,
+  type RouteObject,
+} from "react-router-dom";
 
 import { AppShell } from "../components/layout/AppShell";
 import { useAuth } from "../lib/auth/auth-context";
@@ -74,7 +80,7 @@ function PlaceholderPage() {
 /**
  * 路由树当前先保证认证、壳子和仪表盘进入路径正确，后续任务再逐页替换占位路由。
  */
-export const router = createBrowserRouter([
+export const routeConfig: RouteObject[] = [
   {
     path: "/",
     element: <RootRedirect />,
@@ -149,4 +155,6 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+];
+
+export const router = createBrowserRouter(routeConfig);

@@ -8,14 +8,9 @@ import { useAuth } from "../../lib/auth/auth-context";
 
 const presetAccounts = [
   {
-    role: "超级管理员",
+    role: "默认引导账号",
     username: "admin",
-    hint: "全量管理项目、模型、系统配置与审计日志。",
-  },
-  {
-    role: "开发工程师",
-    username: "reviewer",
-    hint: "聚焦项目接入、审查记录追踪与团队协作分析。",
+    hint: "本地引导环境默认提供该超级管理员账号，可直接登录初始化控制台。",
   },
 ] as const;
 
@@ -129,7 +124,7 @@ export function LoginPage() {
           <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
             从这里进入智能审查控制台。当前认证流已接入 JWT 登录、refresh token 续期、RBAC 菜单初始化，以及首次登录强制改密分支。
           </p>
-          <div className="mt-10 grid gap-4 sm:grid-cols-2">
+          <div className="mt-10 grid gap-4">
             {presetAccounts.map((account) => (
               <button
                 key={account.role}
@@ -139,7 +134,7 @@ export function LoginPage() {
               >
                 <p className="text-sm font-medium text-white">{account.role}</p>
                 <p className="mt-2 text-xs uppercase tracking-[0.24em] text-cyan-200/85">
-                  {account.username}
+                  {account.username} / jdw112233
                 </p>
                 <p className="mt-3 text-sm leading-6 text-slate-300">{account.hint}</p>
               </button>
