@@ -58,7 +58,7 @@ function renderAppShell() {
   );
 }
 
-test("根据 access-context 返回的菜单渲染导航项", async () => {
+test("renders console shell navigation and topbar labels", async () => {
   mockHttpGet.mockResolvedValueOnce({
     data: {
       user: {
@@ -70,21 +70,54 @@ test("根据 access-context 返回的菜单渲染导航项", async () => {
         is_active: true,
         is_superuser: true,
       },
-      roles: [],
+      roles: [
+        {
+          id: 1,
+          name: "超级管理员",
+          code: "super_admin",
+        },
+      ],
       permissions: [],
       menus: [
         {
           id: 1,
           parent_id: null,
-          name: "项目管理",
-          path: "/projects",
+          name: "仪表盘",
+          path: "/dashboard",
+          component: null,
+          icon: "layout-dashboard",
+          sort: 10,
+          visible: true,
+          redirect: null,
+          meta: null,
+          children: [],
+        },
+        {
+          id: 2,
+          parent_id: null,
+          name: "系统管理",
+          path: "/system",
           component: null,
           icon: "folder-kanban",
           sort: 20,
           visible: true,
           redirect: null,
           meta: null,
-          children: [],
+          children: [
+            {
+              id: 3,
+              parent_id: 2,
+              name: "系统日志",
+              path: "/system/logs",
+              component: null,
+              icon: "scroll-text",
+              sort: 30,
+              visible: true,
+              redirect: null,
+              meta: null,
+              children: [],
+            },
+          ],
         },
       ],
       must_change_password: false,
@@ -93,7 +126,54 @@ test("根据 access-context 返回的菜单渲染导航项", async () => {
 
   renderAppShell();
 
-  expect(await screen.findByText("项目管理")).toBeInTheDocument();
+  expect(await screen.findByText("AI Code Review")).toBeInTheDocument();
+  expect(screen.getByText("审查控制台")).toBeInTheDocument();
+  expect(screen.getByText("系统日志")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "退出登录" })).toBeInTheDocument();
   expect(http.get).toHaveBeenCalledWith("/me/access-context");
   expect(tokenStore.load).toHaveBeenCalled();
+});
+
+test("renders password change warning when auth context requires it", async () => {
+  mockHttpGet.mockResolvedValueOnce({
+    data: {
+      user: {
+        id: 1,
+        username: "admin",
+        nickname: "管理员",
+        email: "admin@example.com",
+        phone: null,
+        is_active: true,
+        is_superuser: true,
+      },
+      roles: [
+        {
+          id: 1,
+          name: "超级管理员",
+          code: "super_admin",
+        },
+      ],
+      permissions: [],
+      menus: [
+        {
+          id: 1,
+          parent_id: null,
+          name: "仪表盘",
+          path: "/dashboard",
+          component: null,
+          icon: "layout-dashboard",
+          sort: 10,
+          visible: true,
+          redirect: null,
+          meta: null,
+          children: [],
+        },
+      ],
+      must_change_password: true,
+    },
+  });
+
+  renderAppShell();
+
+  expect(await screen.findByText("账号需要先修改密码")).toBeInTheDocument();
 });
