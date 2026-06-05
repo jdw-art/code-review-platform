@@ -15,6 +15,8 @@ export interface ConsoleProjectCard {
 }
 
 export function toConsoleProjectCard(project: ProjectResponse): ConsoleProjectCard {
+  const settings = project.settings ?? {};
+
   return {
     id: project.id,
     name: project.name,
@@ -22,10 +24,16 @@ export function toConsoleProjectCard(project: ProjectResponse): ConsoleProjectCa
     platformType: project.platform_type,
     enabled: project.is_active,
     reviewEnabled: project.review_enabled,
-    language: project.settings.language ?? "TypeScript",
+    language: typeof settings.language === "string" && settings.language.length > 0
+      ? settings.language
+      : "TypeScript",
     description: project.description ?? "No description provided.",
-    owner: project.settings.owner ?? "system",
-    scoreAverage: project.settings.average_score ?? 0,
-    lastReviewAt: project.settings.last_review_at ?? "",
+    owner: typeof settings.owner === "string" && settings.owner.length > 0
+      ? settings.owner
+      : "system",
+    scoreAverage:
+      typeof settings.average_score === "number" ? settings.average_score : 0,
+    lastReviewAt:
+      typeof settings.last_review_at === "string" ? settings.last_review_at : "",
   };
 }

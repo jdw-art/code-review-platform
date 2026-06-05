@@ -73,7 +73,7 @@ function buildProjectForm(row: ProjectResponse): ProjectFormState {
     description: row.description ?? "",
     template_id: row.template?.id ? String(row.template.id) : "",
     review_enabled: row.review_enabled,
-    settings_text: toPrettyJson(row.settings),
+    settings_text: toPrettyJson(row.settings ?? {}),
   };
 }
 

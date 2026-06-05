@@ -89,3 +89,48 @@ test("maps model response into console fields", () => {
   expect(vm.queriesCount).toBe(27);
   expect(vm.api_key_masked).toBe("sk-l**********-key");
 });
+
+test("maps model response safely when queries_count is absent or null", () => {
+  const missingCountVm = toConsoleModel({
+    id: 2,
+    name: "Claude 3.7 Sonnet",
+    provider: "anthropic",
+    model_code: "claude-3-7-sonnet",
+    base_url: null,
+    api_key_masked: null,
+    temperature: null,
+    max_tokens: null,
+    top_p: null,
+    prompt_template: null,
+    is_default: false,
+    is_active: false,
+    last_test_status: null,
+    last_test_message: null,
+    last_test_at: null,
+    created_at: "2026-05-28T10:00:00Z",
+    updated_at: "2026-05-28T10:00:00Z",
+  });
+  const nullCountVm = toConsoleModel({
+    id: 3,
+    name: "Gemini 2.5 Pro",
+    provider: "google",
+    model_code: "gemini-2.5-pro",
+    base_url: null,
+    api_key_masked: null,
+    temperature: null,
+    max_tokens: null,
+    top_p: null,
+    prompt_template: null,
+    is_default: false,
+    is_active: true,
+    queries_count: null,
+    last_test_status: null,
+    last_test_message: null,
+    last_test_at: null,
+    created_at: "2026-05-28T10:00:00Z",
+    updated_at: "2026-05-28T10:00:00Z",
+  });
+
+  expect(missingCountVm.queriesCount).toBe(0);
+  expect(nullCountVm.queriesCount).toBe(0);
+});

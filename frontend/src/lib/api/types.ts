@@ -134,7 +134,7 @@ export interface ProjectResponse {
   is_active: boolean;
   review_enabled: boolean;
   template: ProjectTemplateSummary | null;
-  settings: ProjectSettingsResponse;
+  settings?: ProjectSettingsResponse | null;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -261,9 +261,9 @@ export interface DashboardOverviewResponse {
   total_review_records: number;
   average_score: number | null;
   active_model_name: string | null;
-  recent_reviews: DashboardRecentReviewItem[];
-  project_chart: DashboardChartPoint[];
-  member_chart: DashboardChartPoint[];
+  recent_reviews?: DashboardRecentReviewItem[] | null;
+  project_chart?: DashboardChartPoint[] | null;
+  member_chart?: DashboardChartPoint[] | null;
 }
 
 export interface DashboardChartPoint {

@@ -14,13 +14,19 @@ export interface ConsoleProjectTemplate {
 export function toConsoleProjectTemplate(
   template: ProjectTemplateResponse
 ): ConsoleProjectTemplate {
+  const fileExtensions = Array.isArray(template.file_extensions)
+    ? template.file_extensions.filter(
+        (extension): extension is string => typeof extension === "string"
+      )
+    : [];
+
   return {
     id: template.id,
     name: template.name,
     code: template.code,
     description: template.description ?? "",
-    fileExtensions: template.file_extensions,
-    fileExtensionsLabel: template.file_extensions.join(", "),
+    fileExtensions,
+    fileExtensionsLabel: fileExtensions.join(", "),
     reviewPromptConfigured: template.review_prompt_configured,
     enabled: template.is_active,
   };

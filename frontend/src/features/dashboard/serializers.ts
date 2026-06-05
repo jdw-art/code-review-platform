@@ -23,14 +23,24 @@ export interface ConsoleDashboardOverview {
 export function toConsoleDashboardOverview(
   overview: DashboardOverviewResponse
 ): ConsoleDashboardOverview {
+  const recentReviews = Array.isArray(overview.recent_reviews)
+    ? overview.recent_reviews
+    : [];
+  const projectChart = Array.isArray(overview.project_chart)
+    ? overview.project_chart
+    : [];
+  const memberChart = Array.isArray(overview.member_chart)
+    ? overview.member_chart
+    : [];
+
   return {
     totalProjects: overview.total_projects,
     activeProjects: overview.active_projects,
     totalReviewRecords: overview.total_review_records,
     averageScore: overview.average_score,
     activeModelName: overview.active_model_name,
-    recentReviews: overview.recent_reviews,
-    projectChart: overview.project_chart,
-    memberChart: overview.member_chart,
+    recentReviews,
+    projectChart,
+    memberChart,
   };
 }

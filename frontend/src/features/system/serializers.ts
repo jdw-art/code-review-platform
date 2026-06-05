@@ -6,6 +6,8 @@ import type {
 } from "../../lib/api/types";
 
 export function toConsoleUser(user: UserResponse) {
+  const roles = Array.isArray(user.roles) ? user.roles : [];
+
   return {
     id: user.id,
     username: user.username,
@@ -13,19 +15,24 @@ export function toConsoleUser(user: UserResponse) {
     email: user.email,
     enabled: user.is_active,
     isSuperuser: user.is_superuser,
-    roles: user.roles.map((role) => role.name),
+    roles: roles
+      .map((role) => role?.name)
+      .filter((roleName): roleName is string => typeof roleName === "string"),
   };
 }
 
 export function toConsoleRole(role: RoleResponse) {
+  const permissions = Array.isArray(role.permissions) ? role.permissions : [];
+  const menus = Array.isArray(role.menus) ? role.menus : [];
+
   return {
     id: role.id,
     name: role.name,
     code: role.code,
     description: role.description,
     isSystem: role.is_system,
-    permissionCount: role.permissions.length,
-    menuCount: role.menus.length,
+    permissionCount: permissions.length,
+    menuCount: menus.length,
   };
 }
 

@@ -4,7 +4,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { createQueryClient } from "../../lib/query/query-client";
+import { toConsoleDashboardOverview } from "../../features/dashboard/serializers";
+import { toConsoleProjectTemplate } from "../../features/project-templates/serializers";
 import { toConsoleProjectCard } from "../../features/projects/serializers";
+import { toConsoleRole, toConsoleUser } from "../../features/system/serializers";
 import { ProjectListPage } from "./ProjectListPage";
 import { ProjectTemplateListPage } from "./ProjectTemplateListPage";
 
@@ -185,4 +188,115 @@ test("maps project response into console card fields", () => {
   expect(vm.language).toBe("TypeScript");
   expect(vm.scoreAverage).toBe(88.5);
   expect(vm.lastReviewAt).toContain("2026");
+});
+
+test("maps project response safely when settings are missing", () => {
+  const vm = toConsoleProjectCard({
+    id: 2,
+    name: "fallback-project",
+    key: "FALLBACK",
+    platform_type: "GitLab",
+    repo_url: null,
+    default_branch: "main",
+    description: null,
+    is_active: false,
+    review_enabled: false,
+    template: null,
+    settings: undefined,
+    created_by: null,
+    created_at: "2026-06-05T10:00:00Z",
+    updated_at: "2026-06-05T10:00:00Z",
+  } as never);
+
+  expect(vm.enabled).toBe(false);
+  expect(vm.language).toBe("TypeScript");
+  expect(vm.owner).toBe("system");
+  expect(vm.scoreAverage).toBe(0);
+  expect(vm.lastReviewAt).toBe("");
+  expect(vm.description).toBe("No description provided.");
+});
+
+test("maps project response safely when settings are null", () => {
+  const vm = toConsoleProjectCard({
+    id: 3,
+    name: "null-settings-project",
+    key: "NULLS",
+    platform_type: "GitHub",
+    repo_url: null,
+    default_branch: "main",
+    description: null,
+    is_active: true,
+    review_enabled: true,
+    template: null,
+    settings: null,
+    created_by: null,
+    created_at: "2026-06-05T10:00:00Z",
+    updated_at: "2026-06-05T10:00:00Z",
+  } as never);
+
+  expect(vm.language).toBe("TypeScript");
+  expect(vm.owner).toBe("system");
+  expect(vm.scoreAverage).toBe(0);
+  expect(vm.lastReviewAt).toBe("");
+});
+
+test("maps dashboard and template serializers safely for partial responses", () => {
+  const dashboardVm = toConsoleDashboardOverview({
+    total_projects: 0,
+    active_projects: 0,
+    total_review_records: 0,
+    average_score: null,
+    active_model_name: null,
+    recent_reviews: undefined,
+    project_chart: undefined,
+    member_chart: null,
+  } as never);
+  const templateVm = toConsoleProjectTemplate({
+    id: 9,
+    name: "Template",
+    code: "TEMPLATE",
+    description: null,
+    file_extensions: undefined,
+    review_prompt_template: null,
+    review_prompt_configured: false,
+    prompt_metadata: {},
+    is_system: false,
+    is_active: true,
+    created_by: null,
+    created_at: "2026-06-05T10:00:00Z",
+    updated_at: "2026-06-05T10:00:00Z",
+  } as never);
+
+  expect(dashboardVm.recentReviews).toEqual([]);
+  expect(dashboardVm.projectChart).toEqual([]);
+  expect(dashboardVm.memberChart).toEqual([]);
+  expect(templateVm.fileExtensions).toEqual([]);
+  expect(templateVm.fileExtensionsLabel).toBe("");
+});
+
+test("maps system serializers safely when nested arrays are absent", () => {
+  const userVm = toConsoleUser({
+    id: 1,
+    username: "admin",
+    nickname: null,
+    email: null,
+    phone: null,
+    is_active: true,
+    is_superuser: true,
+    must_change_password: false,
+    roles: undefined,
+  } as never);
+  const roleVm = toConsoleRole({
+    id: 1,
+    name: "Admin",
+    code: "admin",
+    description: null,
+    is_system: true,
+    permissions: undefined,
+    menus: null,
+  } as never);
+
+  expect(userVm.roles).toEqual([]);
+  expect(roleVm.permissionCount).toBe(0);
+  expect(roleVm.menuCount).toBe(0);
 });
