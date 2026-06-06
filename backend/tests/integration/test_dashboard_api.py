@@ -33,11 +33,20 @@ def test_dashboard_overview_aggregates_review_scores(
         is_active=False,
         review_enabled=True,
     )
-    db_session.add_all([first_project, second_project, third_project])
+    fourth_project = Project(
+        name="Ops Mirror",
+        key="ops-mirror",
+        platform_type="github",
+        default_branch="main",
+        is_active=False,
+        review_enabled=True,
+    )
+    db_session.add_all([first_project, second_project, third_project, fourth_project])
     db_session.commit()
     db_session.refresh(first_project)
     db_session.refresh(second_project)
     db_session.refresh(third_project)
+    db_session.refresh(fourth_project)
 
     db_session.add_all(
         [
@@ -73,6 +82,25 @@ def test_dashboard_overview_aggregates_review_scores(
 
     db_session.add_all(
         [
+            ReviewRecord(
+                project_id=fourth_project.id,
+                event_type="push",
+                platform_type="github",
+                project_name_snapshot="Ops Mirror Legacy",
+                author="erin",
+                commit_count=1,
+                commit_messages=["chore: archive stale replicas"],
+                title="Archive stale replicas",
+                branch="chore/archive",
+                last_commit_id="fgh6789ijk0123",
+                score=None,
+                review_status="failed",
+                summary="Archive job failed before syncing replica metadata.",
+                additions=12,
+                deletions=6,
+                created_at=now - timedelta(minutes=60),
+                updated_at=now - timedelta(minutes=60),
+            ),
             ReviewRecord(
                 project_id=first_project.id,
                 event_type="merge_request",
@@ -176,9 +204,9 @@ def test_dashboard_overview_aggregates_review_scores(
 
     assert response.status_code == 200
     body = response.json()
-    assert body["total_projects"] == 3
+    assert body["total_projects"] == 4
     assert body["active_projects"] == 2
-    assert body["total_review_records"] == 5
+    assert body["total_review_records"] == 6
     assert body["average_score"] == 84.5
     assert body["active_model_name"] == "Gemini 2.5 Pro"
     assert [item["name"] for item in body["models"]] == [
@@ -224,6 +252,13 @@ def test_dashboard_overview_aggregates_review_scores(
             "additions": 210,
             "deletions": 75,
         },
+        {
+            "name": "Ops Mirror",
+            "commits": 1,
+            "avg_score": None,
+            "additions": 12,
+            "deletions": 6,
+        },
     ]
     assert body["member_chart"] == [
         {
@@ -250,15 +285,23 @@ def test_dashboard_overview_aggregates_review_scores(
         {
             "name": "carol",
             "commits": 1,
-            "avg_score": 0.0,
+            "avg_score": None,
             "additions": 40,
             "deletions": 18,
+        },
+        {
+            "name": "erin",
+            "commits": 1,
+            "avg_score": None,
+            "additions": 12,
+            "deletions": 6,
         },
     ]
     assert [point["name"] for point in body["project_chart"]] == [
         "Payments API",
         "Console Web",
         "Async Worker",
+        "Ops Mirror",
     ]
     assert body["repo_health"] == [
         {

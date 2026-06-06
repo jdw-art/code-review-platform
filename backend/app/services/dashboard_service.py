@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime
 
 from fastapi import Depends
 from sqlalchemy import select
@@ -27,6 +28,29 @@ class _AggregateBucket:
     scored_reviews: int = 0
 
 
+@dataclass(frozen=True)
+class _ReviewOverviewRow:
+    id: int
+    project_id: int
+    project_name_snapshot: str
+    title: str | None
+    branch: str | None
+    last_commit_id: str | None
+    external_commit_sha: str | None
+    author: str
+    score: float | None
+    review_status: str
+    summary: str | None
+    created_at: datetime
+    commit_count: int
+    additions: int
+    deletions: int
+
+    @property
+    def commit_hash(self) -> str | None:
+        return self.last_commit_id or self.external_commit_sha
+
+
 class DashboardService:
     """提供管理后台仪表盘概览统计。"""
 
@@ -43,14 +67,35 @@ class DashboardService:
                 LlmModel.id.asc(),
             )
         ).all()
-        reviews = self.session.scalars(
-            select(ReviewRecord).order_by(ReviewRecord.created_at.desc(), ReviewRecord.id.desc())
-        ).all()
+        review_rows = [
+            _ReviewOverviewRow(**row)
+            for row in self.session.execute(
+                select(
+                    ReviewRecord.id,
+                    ReviewRecord.project_id,
+                    ReviewRecord.project_name_snapshot,
+                    ReviewRecord.title,
+                    ReviewRecord.branch,
+                    ReviewRecord.last_commit_id,
+                    ReviewRecord.external_commit_sha,
+                    ReviewRecord.author,
+                    ReviewRecord.score,
+                    ReviewRecord.review_status,
+                    ReviewRecord.summary,
+                    ReviewRecord.created_at,
+                    ReviewRecord.commit_count,
+                    ReviewRecord.additions,
+                    ReviewRecord.deletions,
+                ).order_by(ReviewRecord.created_at.desc(), ReviewRecord.id.desc())
+            )
+            .mappings()
+            .all()
+        ]
 
         total_projects = len(projects)
         active_projects = sum(1 for project in projects if project.is_active)
-        total_review_records = len(reviews)
-        scored_reviews = [review.score for review in reviews if review.score is not None]
+        total_review_records = len(review_rows)
+        scored_reviews = [review.score for review in review_rows if review.score is not None]
         average_score = (
             round(sum(scored_reviews) / len(scored_reviews), 2)
             if scored_reviews
@@ -70,11 +115,11 @@ class DashboardService:
         )
 
         project_names = {project.id: project.name for project in projects}
-        reviews_by_project: dict[int, list[ReviewRecord]] = defaultdict(list)
+        reviews_by_project: dict[int, list[_ReviewOverviewRow]] = defaultdict(list)
         project_buckets: dict[int, _AggregateBucket] = defaultdict(_AggregateBucket)
         member_buckets: dict[str, _AggregateBucket] = defaultdict(_AggregateBucket)
 
-        for review in reviews:
+        for review in review_rows:
             reviews_by_project[review.project_id].append(review)
             self._apply_review(project_buckets[review.project_id], review)
             self._apply_review(member_buckets[review.author], review)
@@ -91,14 +136,14 @@ class DashboardService:
                     project_name=review.project_name_snapshot,
                     title=review.title,
                     branch=review.branch,
-                    commit_hash=review.last_commit_id or review.external_commit_sha,
+                    commit_hash=review.commit_hash,
                     committer=review.author,
                     score=review.score,
                     review_status=review.review_status,
                     summary=review.summary,
                     created_at=review.created_at,
                 )
-                for review in reviews[:4]
+                for review in review_rows[:4]
             ],
             project_chart=self._build_project_chart(project_buckets, project_names),
             member_chart=self._build_chart_points(member_buckets),
@@ -117,7 +162,7 @@ class DashboardService:
         )
 
     @staticmethod
-    def _apply_review(bucket: _AggregateBucket, review: ReviewRecord) -> None:
+    def _apply_review(bucket: _AggregateBucket, review: _ReviewOverviewRow) -> None:
         """把单条审查记录累计到图表聚合桶。"""
         bucket.commits += review.commit_count
         bucket.additions += review.additions
@@ -138,7 +183,7 @@ class DashboardService:
                 commits=bucket.commits,
                 avg_score=round(bucket.score_total / bucket.scored_reviews, 2)
                 if bucket.scored_reviews
-                else 0.0,
+                else None,
                 additions=bucket.additions,
                 deletions=bucket.deletions,
             )
@@ -164,7 +209,7 @@ class DashboardService:
                 commits=bucket.commits,
                 avg_score=round(bucket.score_total / bucket.scored_reviews, 2)
                 if bucket.scored_reviews
-                else 0.0,
+                else None,
                 additions=bucket.additions,
                 deletions=bucket.deletions,
             )
@@ -178,7 +223,7 @@ class DashboardService:
     def _build_repo_health(
         self,
         projects: list[Project],
-        reviews_by_project: dict[int, list[ReviewRecord]],
+        reviews_by_project: dict[int, list[_ReviewOverviewRow]],
     ) -> list[DashboardRepoHealthItem]:
         """构建仓库健康摘要。"""
         items: list[DashboardRepoHealthItem] = []

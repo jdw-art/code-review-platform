@@ -94,7 +94,7 @@ test("renders the high-fidelity console dashboard from a single overview query",
         {
           name: "bob",
           commits: 7,
-          avg_score: 82.4,
+          avg_score: null,
           additions: 1110,
           deletions: 410,
         },
@@ -158,5 +158,25 @@ test("renders the high-fidelity console dashboard from a single overview query",
   expect(screen.getByText("研发效能可视化度量中心")).toBeInTheDocument();
   expect(screen.getByText("各项目代码提交频次")).toBeInTheDocument();
   expect(screen.getByText("成员代码质量评分指数")).toBeInTheDocument();
+  expect(screen.getByText("均分: -")).toBeInTheDocument();
   expect(screen.getAllByText("Payments API").length).toBeGreaterThan(0);
+});
+
+test("renders an explicit loading state instead of fake zero metrics", () => {
+  mockHttpGet.mockImplementationOnce(() => new Promise(() => {}));
+
+  renderWithQuery(<DashboardPage />);
+
+  expect(screen.getByText("正在加载仪表盘概览...")).toBeInTheDocument();
+  expect(screen.queryByText("项目总数")).not.toBeInTheDocument();
+});
+
+test("renders an explicit error state when overview loading fails", async () => {
+  mockHttpGet.mockRejectedValueOnce(new Error("overview unavailable"));
+
+  renderWithQuery(<DashboardPage />);
+
+  expect(await screen.findByText("仪表盘概览加载失败")).toBeInTheDocument();
+  expect(screen.getByText("overview unavailable")).toBeInTheDocument();
+  expect(screen.queryByText("项目总数")).not.toBeInTheDocument();
 });

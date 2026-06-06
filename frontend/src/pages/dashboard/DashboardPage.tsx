@@ -25,21 +25,15 @@ import {
 } from "../../features/dashboard/serializers";
 import { useAuth } from "../../lib/auth/auth-context";
 
-const emptyOverview: ConsoleDashboardOverview = {
-  totalProjects: 0,
-  activeProjects: 0,
-  totalReviewRecords: 0,
-  averageScore: null,
-  activeModelName: null,
-  recentReviews: [],
-  projectChart: [],
-  memberChart: [],
-  models: [],
-  repoHealth: [],
-};
-
 function formatScore(score: number | null) {
   return score === null ? "-" : score.toFixed(1);
+}
+
+function readErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return "请稍后重试。";
 }
 
 function formatTimestamp(value: string | null | undefined) {
@@ -101,10 +95,17 @@ function MetricListCard({
   icon: ReactNode;
   items: ConsoleDashboardOverview["projectChart"];
   metricLabel: string;
-  metricValue: (item: ConsoleDashboardOverview["projectChart"][number]) => number;
+  metricValue: (
+    item: ConsoleDashboardOverview["projectChart"][number]
+  ) => number | null;
   barClassName: string;
 }) {
-  const maxValue = Math.max(...items.map((item) => metricValue(item)), 1);
+  const maxValue = Math.max(
+    ...items
+      .map((item) => metricValue(item))
+      .filter((value): value is number => value !== null),
+    1
+  );
 
   return (
     <article className="rounded-[1.75rem] border border-slate-200/80 bg-white p-5 shadow-sm">
@@ -124,13 +125,20 @@ function MetricListCard({
                 <div className="flex items-center justify-between gap-3 text-xs">
                   <span className="truncate font-medium text-slate-700">{item.name}</span>
                   <span className="font-mono text-slate-500">
-                    {metricLabel}: {value.toFixed(1).replace(".0", "")}
+                    {metricLabel}: {value === null ? "-" : value.toFixed(1).replace(".0", "")}
                   </span>
                 </div>
                 <div className="h-2 rounded-full bg-slate-100">
                   <div
-                    className={`h-2 rounded-full ${barClassName}`}
-                    style={{ width: `${Math.max((value / maxValue) * 100, 10)}%` }}
+                    className={`h-2 rounded-full ${
+                      value === null ? "bg-slate-200" : barClassName
+                    }`}
+                    style={{
+                      width:
+                        value === null
+                          ? "12%"
+                          : `${Math.max((value / maxValue) * 100, 10)}%`,
+                    }}
                   />
                 </div>
               </div>
@@ -218,12 +226,52 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const displayName = user?.nickname?.trim() || user?.username || "管理员";
-  const { data } = useQuery({
+  const { data, error, isError, isPending, refetch } = useQuery({
     queryKey: ["dashboard", "overview"],
     queryFn: () => getDashboardOverview(),
     select: toConsoleDashboardOverview,
   });
-  const overview = data ?? emptyOverview;
+
+  if (isPending && data === undefined) {
+    return (
+      <section className="space-y-8">
+        <div className="rounded-[2rem] border border-slate-200/80 bg-white p-8 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-indigo-700">
+            Dashboard
+          </p>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
+            {displayName}，欢迎进入代码复审控制中心
+          </h1>
+          <p className="mt-3 text-sm text-slate-600">正在加载仪表盘概览...</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (isError && data === undefined) {
+    return (
+      <section className="space-y-8">
+        <div className="rounded-[2rem] border border-rose-200 bg-rose-50/70 p-8 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-rose-700">
+            Dashboard
+          </p>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
+            仪表盘概览加载失败
+          </h1>
+          <p className="mt-3 text-sm text-slate-700">{readErrorMessage(error)}</p>
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="mt-5 rounded-2xl border border-rose-200 bg-white px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100"
+          >
+            重新加载
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  const overview = data as ConsoleDashboardOverview;
 
   return (
     <section className="space-y-8">

@@ -10,7 +10,7 @@ class DashboardChartPoint(BaseModel):
 
     name: str
     commits: int
-    avg_score: float
+    avg_score: float | None = None
     additions: int
     deletions: int
 

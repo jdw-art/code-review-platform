@@ -271,7 +271,7 @@ export interface DashboardOverviewResponse {
 export interface DashboardChartPoint {
   name: string;
   commits: number;
-  avg_score: number;
+  avg_score: number | null;
   additions: number;
   deletions: number;
 }
