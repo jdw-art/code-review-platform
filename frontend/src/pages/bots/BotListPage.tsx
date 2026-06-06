@@ -8,6 +8,7 @@ import { StatusBadge } from "../../components/common/StatusBadge";
 import {
   createBot,
   listBots,
+  testBot,
   updateBot,
   updateBotStatus,
   type NotificationBotPayload,
@@ -120,7 +121,7 @@ export function BotListPage() {
   });
 
   const testMutation = useMutation({
-    mutationFn: async (row: NotificationBotResponse) => row,
+    mutationFn: async (row: NotificationBotResponse) => testBot(row.id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["notification-bots", "list"] });
     },
