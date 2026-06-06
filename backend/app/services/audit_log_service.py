@@ -22,7 +22,14 @@ SENSITIVE_REQUEST_FIELDS = {
     "refresh_token",
 }
 
-SYSTEM_AUDIT_RESOURCE_TYPES = {"audit_log", "auth"}
+SYSTEM_AUDIT_RESOURCE_TYPES = {
+    "audit_log",
+    "auth",
+    "user",
+    "role",
+    "permission",
+    "menu",
+}
 
 
 def sanitize_request_payload(payload: Any) -> Any:

@@ -464,23 +464,23 @@ def test_model_and_bot_mutation_actions_write_audit_logs(
     assert bot_update_log.request_payload["secret"] == "***"
 
 
-def test_purge_audit_logs_keeps_system_audit_entry(
+def test_purge_audit_logs_preserves_security_admin_logs(
     authenticated_superuser_client,
     db_session,
 ) -> None:
     business_log = AuditLog(
         username_snapshot="root-admin",
-        action="user.create",
-        resource_type="user",
-        resource_id=101,
-        resource_name_snapshot="temp-user",
-        request_path="/api/v1/users",
+        action="project.create",
+        resource_type="project",
+        resource_id=201,
+        resource_name_snapshot="demo-project",
+        request_path="/api/v1/projects",
         request_method="POST",
-        request_payload={"username": "temp-user"},
+        request_payload={"name": "demo-project"},
         response_status=201,
         result="success",
     )
-    system_log = AuditLog(
+    audit_log = AuditLog(
         username_snapshot="system",
         action="audit_log.seed",
         resource_type="audit_log",
@@ -504,7 +504,57 @@ def test_purge_audit_logs_keeps_system_audit_entry(
         response_status=200,
         result="success",
     )
-    db_session.add_all([business_log, system_log, auth_log])
+    user_log = AuditLog(
+        username_snapshot="root-admin",
+        action="user.create",
+        resource_type="user",
+        resource_id=101,
+        resource_name_snapshot="temp-user",
+        request_path="/api/v1/users",
+        request_method="POST",
+        request_payload={"username": "temp-user"},
+        response_status=201,
+        result="success",
+    )
+    role_log = AuditLog(
+        username_snapshot="root-admin",
+        action="role.update",
+        resource_type="role",
+        resource_id=301,
+        resource_name_snapshot="maintainer",
+        request_path="/api/v1/roles/301",
+        request_method="PATCH",
+        request_payload={"name": "maintainer"},
+        response_status=200,
+        result="success",
+    )
+    permission_log = AuditLog(
+        username_snapshot="root-admin",
+        action="permission.delete",
+        resource_type="permission",
+        resource_id=401,
+        resource_name_snapshot="audit:read",
+        request_path="/api/v1/permissions/401",
+        request_method="DELETE",
+        request_payload={},
+        response_status=204,
+        result="success",
+    )
+    menu_log = AuditLog(
+        username_snapshot="root-admin",
+        action="menu.update",
+        resource_type="menu",
+        resource_id=501,
+        resource_name_snapshot="系统设置",
+        request_path="/api/v1/menus/501",
+        request_method="PATCH",
+        request_payload={"name": "系统设置"},
+        response_status=200,
+        result="success",
+    )
+    db_session.add_all(
+        [business_log, audit_log, auth_log, user_log, role_log, permission_log, menu_log]
+    )
     db_session.commit()
 
     response = authenticated_superuser_client.post("/api/v1/audit-logs/purge")
@@ -517,11 +567,15 @@ def test_purge_audit_logs_keeps_system_audit_entry(
     actions = {log.action for log in remaining_logs}
     resource_types = {log.resource_type for log in remaining_logs}
 
-    assert "user.create" not in actions
+    assert "project.create" not in actions
     assert "audit_log.seed" in actions
     assert "auth.login" in actions
+    assert "user.create" in actions
+    assert "role.update" in actions
+    assert "permission.delete" in actions
+    assert "menu.update" in actions
     assert "audit_log.purge" in actions
-    assert resource_types == {"audit_log", "auth"}
+    assert resource_types == {"audit_log", "auth", "user", "role", "permission", "menu"}
 
     purge_log = next(log for log in remaining_logs if log.action == "audit_log.purge")
     assert purge_log.request_payload["purged_count"] == payload["purged_count"]
