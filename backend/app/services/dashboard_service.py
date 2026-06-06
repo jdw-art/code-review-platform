@@ -139,7 +139,7 @@ class DashboardService:
                     branch=review.branch,
                     commit_hash=review.commit_hash,
                     committer=review.author,
-                    score=review.score,
+                    score=review.score if self._is_scored_review(review) else None,
                     review_status=review.review_status,
                     summary=review.summary,
                     created_at=review.created_at,

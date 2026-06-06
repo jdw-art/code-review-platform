@@ -259,6 +259,8 @@ def test_dashboard_overview_aggregates_review_scores(
         "created_at": "2026-06-05T09:25:00Z",
     }
     assert body["recent_reviews"][-1]["project_name"] == "Console Web"
+    assert body["recent_reviews"][2]["review_status"] == "failed"
+    assert body["recent_reviews"][2]["score"] is None
 
     assert body["project_chart"] == [
         {
