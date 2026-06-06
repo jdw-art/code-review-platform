@@ -5,6 +5,7 @@ from sqlalchemy import select
 from app.core.config import Settings
 from app.core.crypto import SecretCipher
 from app.db.models import AuditLog, NotificationBot
+from app.services.review_notification_service import ReviewNotificationSender
 
 
 def test_notification_bots_api_supports_crud_status_and_encrypts_secret(
@@ -95,3 +96,115 @@ def test_notification_bots_api_exposes_chinese_openapi(
     operation = response.json()["paths"]["/api/v1/notification-bots"]["get"]
     assert operation["summary"] == "获取机器人列表"
     assert "分页返回通知机器人列表" in operation["description"]
+
+
+def test_notification_bot_test_action_updates_last_test_fields_on_success(
+    authenticated_superuser_client,
+    db_session,
+    monkeypatch,
+) -> None:
+    create_response = authenticated_superuser_client.post(
+        "/api/v1/notification-bots",
+        json={
+            "name": "QA Bot",
+            "bot_type": "custom_webhook",
+            "webhook_url": "https://example.com/hooks/qa",
+            "secret": "qa-secret-token",
+            "mention_strategy": "owners",
+            "template_config": {"channel": "qa"},
+        },
+    )
+    assert create_response.status_code == 201
+    created = create_response.json()
+
+    def fake_send(self, **kwargs) -> None:
+        del self, kwargs
+
+    monkeypatch.setattr(ReviewNotificationSender, "send", fake_send)
+
+    response = authenticated_superuser_client.post(
+        f"/api/v1/notification-bots/{created['id']}/test"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["last_test_status"] == "success"
+    assert payload["last_test_message"] == "测试消息发送成功。"
+    assert payload["last_test_at"] is not None
+
+    stored_bot = db_session.scalar(
+        select(NotificationBot).where(NotificationBot.id == created["id"])
+    )
+    assert stored_bot is not None
+    assert stored_bot.last_test_status == "success"
+    assert stored_bot.last_test_message == "测试消息发送成功。"
+    assert stored_bot.last_test_at is not None
+
+    audit_log = db_session.scalar(
+        select(AuditLog)
+        .where(
+            AuditLog.resource_type == "notification_bot",
+            AuditLog.resource_id == created["id"],
+            AuditLog.action == "notification_bot.test",
+        )
+        .order_by(AuditLog.id.desc())
+    )
+    assert audit_log is not None
+    assert audit_log.result == "success"
+
+
+def test_notification_bot_test_action_updates_last_test_fields_on_failure(
+    authenticated_superuser_client,
+    db_session,
+    monkeypatch,
+) -> None:
+    create_response = authenticated_superuser_client.post(
+        "/api/v1/notification-bots",
+        json={
+            "name": "Ops Bot",
+            "bot_type": "custom_webhook",
+            "webhook_url": "https://example.com/hooks/ops",
+            "secret": "ops-secret-token",
+            "mention_strategy": "owners",
+            "template_config": {"channel": "ops"},
+        },
+    )
+    assert create_response.status_code == 201
+    created = create_response.json()
+
+    def fake_send(self, **kwargs) -> None:
+        del self, kwargs
+        raise RuntimeError("Webhook handshake token mismatch.")
+
+    monkeypatch.setattr(ReviewNotificationSender, "send", fake_send)
+
+    response = authenticated_superuser_client.post(
+        f"/api/v1/notification-bots/{created['id']}/test"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["last_test_status"] == "failed"
+    assert payload["last_test_message"] == "Webhook handshake token mismatch."
+    assert payload["last_test_at"] is not None
+
+    stored_bot = db_session.scalar(
+        select(NotificationBot).where(NotificationBot.id == created["id"])
+    )
+    assert stored_bot is not None
+    assert stored_bot.last_test_status == "failed"
+    assert stored_bot.last_test_message == "Webhook handshake token mismatch."
+    assert stored_bot.last_test_at is not None
+
+    audit_log = db_session.scalar(
+        select(AuditLog)
+        .where(
+            AuditLog.resource_type == "notification_bot",
+            AuditLog.resource_id == created["id"],
+            AuditLog.action == "notification_bot.test",
+        )
+        .order_by(AuditLog.id.desc())
+    )
+    assert audit_log is not None
+    assert audit_log.result == "failure"
+    assert audit_log.error_message == "Webhook handshake token mismatch."

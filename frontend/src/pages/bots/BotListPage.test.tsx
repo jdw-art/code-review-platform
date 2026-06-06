@@ -94,3 +94,111 @@ test("点击测试按钮后会调用机器人测试接口", async () => {
     expect(mockHttpPost).toHaveBeenCalledWith("/notification-bots/7/test");
   });
 });
+
+test("机器人测试成功后显示成功反馈", async () => {
+  mockHttpGet.mockResolvedValue({
+    data: {
+      items: [
+        {
+          id: 7,
+          name: "发布通知机器人",
+          bot_type: "dingtalk",
+          webhook_url: "https://oapi.dingtalk.com/robot/send?access_token=bot-7",
+          secret_masked: "sec******789",
+          mention_strategy: "owners",
+          template_config: {},
+          is_active: true,
+          last_test_status: "success",
+          last_test_message: "ok",
+          last_test_at: "2026-06-05T10:00:00Z",
+          created_at: "2026-06-05T10:00:00Z",
+          updated_at: "2026-06-05T10:00:00Z",
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      total_pages: 1,
+    },
+  });
+  mockHttpPost.mockResolvedValueOnce({
+    data: {
+      id: 7,
+      name: "发布通知机器人",
+      bot_type: "dingtalk",
+      webhook_url: "https://oapi.dingtalk.com/robot/send?access_token=bot-7",
+      secret_masked: "sec******789",
+      mention_strategy: "owners",
+      template_config: {},
+      is_active: true,
+      last_test_status: "success",
+      last_test_message: "测试消息发送成功。",
+      last_test_at: "2026-06-06T10:00:00Z",
+      created_at: "2026-06-05T10:00:00Z",
+      updated_at: "2026-06-06T10:00:00Z",
+    },
+  });
+
+  renderWithQuery(<BotListPage />);
+
+  fireEvent.click(await screen.findByRole("button", { name: "测试" }));
+
+  expect(
+    await screen.findByText("已成功向「发布通知机器人」发送诊断测试 Ping 卡片！")
+  ).toBeInTheDocument();
+  expect(screen.getByText("测试消息发送成功。")).toBeInTheDocument();
+});
+
+test("机器人测试失败后显示错误反馈", async () => {
+  mockHttpGet.mockResolvedValue({
+    data: {
+      items: [
+        {
+          id: 7,
+          name: "发布通知机器人",
+          bot_type: "dingtalk",
+          webhook_url: "https://oapi.dingtalk.com/robot/send?access_token=bot-7",
+          secret_masked: "sec******789",
+          mention_strategy: "owners",
+          template_config: {},
+          is_active: true,
+          last_test_status: "success",
+          last_test_message: "ok",
+          last_test_at: "2026-06-05T10:00:00Z",
+          created_at: "2026-06-05T10:00:00Z",
+          updated_at: "2026-06-05T10:00:00Z",
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      total_pages: 1,
+    },
+  });
+  mockHttpPost.mockResolvedValueOnce({
+    data: {
+      id: 7,
+      name: "发布通知机器人",
+      bot_type: "dingtalk",
+      webhook_url: "https://oapi.dingtalk.com/robot/send?access_token=bot-7",
+      secret_masked: "sec******789",
+      mention_strategy: "owners",
+      template_config: {},
+      is_active: true,
+      last_test_status: "failed",
+      last_test_message: "Webhook handshake token mismatch.",
+      last_test_at: "2026-06-06T10:00:00Z",
+      created_at: "2026-06-05T10:00:00Z",
+      updated_at: "2026-06-06T10:00:00Z",
+    },
+  });
+
+  renderWithQuery(<BotListPage />);
+
+  fireEvent.click(await screen.findByRole("button", { name: "测试" }));
+
+  expect(
+    await screen.findByText("向「发布通知机器人」发送测试卡片失败，请检查密钥或网络！")
+  ).toBeInTheDocument();
+  expect(screen.getByText("Webhook handshake token mismatch.")).toBeInTheDocument();
+});

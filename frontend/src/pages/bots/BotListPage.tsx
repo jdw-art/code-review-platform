@@ -4,6 +4,7 @@ import { useState } from "react";
 import { DataTable, type DataTableColumn } from "../../components/common/DataTable";
 import { DrawerForm } from "../../components/common/DrawerForm";
 import { ConsolePageHeader } from "../../components/console/ConsolePageHeader";
+import { ConsoleToast } from "../../components/console/ConsoleToast";
 import { StatusBadge } from "../../components/common/StatusBadge";
 import {
   createBot,
@@ -87,6 +88,11 @@ export function BotListPage() {
   const [editingBot, setEditingBot] = useState<NotificationBotResponse | null>(null);
   const [form, setForm] = useState<BotFormState>(emptyBotForm);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [testFeedback, setTestFeedback] = useState<{
+    title: string;
+    message?: string;
+    tone: "danger" | "success";
+  } | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["notification-bots", "list"],
     queryFn: () => listBots(),
@@ -122,8 +128,28 @@ export function BotListPage() {
 
   const testMutation = useMutation({
     mutationFn: async (row: NotificationBotResponse) => testBot(row.id),
-    onSuccess: async () => {
+    onSuccess: async (testedBot) => {
+      if (testedBot.last_test_status === "success") {
+        setTestFeedback({
+          title: `已成功向「${testedBot.name}」发送诊断测试 Ping 卡片！`,
+          message: testedBot.last_test_message ?? undefined,
+          tone: "success",
+        });
+      } else {
+        setTestFeedback({
+          title: `向「${testedBot.name}」发送测试卡片失败，请检查密钥或网络！`,
+          message: testedBot.last_test_message ?? undefined,
+          tone: "danger",
+        });
+      }
       await queryClient.invalidateQueries({ queryKey: ["notification-bots", "list"] });
+    },
+    onError: (error: Error) => {
+      setTestFeedback({
+        title: "通知机器人测试请求失败。",
+        message: error.message || "请稍后重试。",
+        tone: "danger",
+      });
     },
   });
 
@@ -229,6 +255,13 @@ export function BotListPage() {
   return (
     <>
       <div className="space-y-4 rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-cyan-50/50 p-4 shadow-sm">
+        {testFeedback ? (
+          <ConsoleToast
+            title={testFeedback.title}
+            message={testFeedback.message}
+            tone={testFeedback.tone}
+          />
+        ) : null}
         <ConsolePageHeader
           title="通知机器人控制台"
           description="在这里维护通知渠道配置、脱敏 secret 与测试状态回显。"

@@ -161,6 +161,13 @@ ADMIN_CONSOLE_PERMISSION_SEEDS = [
         "description": "允许查看后台操作审计日志。",
     },
     {
+        "name": "清理审计日志",
+        "code": "audit_log:purge",
+        "resource": "audit_log",
+        "action": "purge",
+        "description": "允许清理业务审计日志，同时保留系统安全日志。",
+    },
+    {
         "name": "查看用户",
         "code": "user:read",
         "resource": "user",

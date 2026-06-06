@@ -462,3 +462,54 @@ def test_model_and_bot_mutation_actions_write_audit_logs(
     bot_update_log = next(log for log in bot_logs if log.action == "notification_bot.update")
     assert model_update_log.request_payload["api_key"] == "***"
     assert bot_update_log.request_payload["secret"] == "***"
+
+
+def test_purge_audit_logs_keeps_system_audit_entry(
+    authenticated_superuser_client,
+    db_session,
+) -> None:
+    business_log = AuditLog(
+        username_snapshot="root-admin",
+        action="user.create",
+        resource_type="user",
+        resource_id=101,
+        resource_name_snapshot="temp-user",
+        request_path="/api/v1/users",
+        request_method="POST",
+        request_payload={"username": "temp-user"},
+        response_status=201,
+        result="success",
+    )
+    system_log = AuditLog(
+        username_snapshot="system",
+        action="audit_log.seed",
+        resource_type="audit_log",
+        resource_id=1,
+        resource_name_snapshot="seed",
+        request_path="/api/v1/audit-logs",
+        request_method="GET",
+        request_payload={},
+        response_status=200,
+        result="success",
+    )
+    db_session.add_all([business_log, system_log])
+    db_session.commit()
+
+    response = authenticated_superuser_client.post("/api/v1/audit-logs/purge")
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["purged_count"] >= 1
+
+    remaining_logs = db_session.scalars(select(AuditLog).order_by(AuditLog.id.asc())).all()
+    actions = {log.action for log in remaining_logs}
+    resource_types = {log.resource_type for log in remaining_logs}
+
+    assert "user.create" not in actions
+    assert "audit_log.seed" in actions
+    assert "audit_log.purge" in actions
+    assert resource_types == {"audit_log"}
+
+    purge_log = next(log for log in remaining_logs if log.action == "audit_log.purge")
+    assert purge_log.request_payload["purged_count"] == payload["purged_count"]
+    assert purge_log.result == "success"

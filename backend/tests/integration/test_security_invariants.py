@@ -208,6 +208,7 @@ def test_access_context_exposes_phase2_permissions_and_menus(
         "review_record:import",
         "member_analytics:read",
         "audit_log:read",
+        "audit_log:purge",
     }.issubset(permissions)
     assert {
         "/projects",

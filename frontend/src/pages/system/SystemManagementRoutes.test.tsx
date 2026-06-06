@@ -84,6 +84,7 @@ vi.mock("../../lib/auth/auth-context", () => ({
 }));
 
 afterEach(() => {
+  mockHttpGet.mockReset();
   vi.resetModules();
 });
 
@@ -103,25 +104,29 @@ function renderRouteAt(path: string) {
 }
 
 test("用户中心路由渲染控制台标题", async () => {
-  mockHttpGet.mockResolvedValueOnce({
+  mockHttpGet.mockResolvedValue({
     data: [],
   });
 
   renderRouteAt("/system/users");
 
-  expect(await screen.findByText("系统用户中心")).toBeInTheDocument();
-  expect(screen.getByText("用户管理")).toBeInTheDocument();
+  expect(
+    await screen.findByRole("heading", { level: 2, name: "系统用户中心" })
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "新建用户" })).toBeInTheDocument();
 });
 
 test("角色矩阵路由渲染控制台标题", async () => {
-  mockHttpGet.mockResolvedValueOnce({
+  mockHttpGet.mockResolvedValue({
     data: [],
   });
 
   renderRouteAt("/system/roles");
 
-  expect(await screen.findByText("智能角色矩阵")).toBeInTheDocument();
-  expect(screen.getByText("角色管理")).toBeInTheDocument();
+  expect(
+    await screen.findByRole("heading", { level: 2, name: "角色权限矩阵" })
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "新建角色" })).toBeInTheDocument();
 });
 
 test("审计日志别名路由重定向后渲染控制台标题和激活导航", async () => {
@@ -134,15 +139,21 @@ test("审计日志别名路由重定向后渲染控制台标题和激活导航",
   expect(auditAliasRoute?.element.props.to).toBe("/audit-logs");
   expect(auditAliasRoute?.element.props.replace).toBe(true);
 
-  mockHttpGet.mockResolvedValueOnce({
+  mockHttpGet.mockResolvedValue({
     data: {
       items: [],
+      total: 0,
+      page: 1,
+      page_size: 20,
+      total_pages: 1,
     },
   });
 
   renderRouteAt("/audit-logs");
 
-  expect((await screen.findAllByText("系统审计日志")).length).toBeGreaterThanOrEqual(2);
+  expect(
+    await screen.findByRole("heading", { level: 2, name: "审计日志观测台" })
+  ).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "系统审计日志" })).toHaveClass("bg-indigo-50");
 });
 

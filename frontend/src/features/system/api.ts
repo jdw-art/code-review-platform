@@ -47,6 +47,14 @@ export async function listAuditLogs() {
 }
 
 /**
+ * 清理业务审计日志，保留系统安全日志。
+ */
+export async function purgeAuditLogs() {
+  const response = await http.post<{ purged_count: number }>("/audit-logs/purge");
+  return response.data;
+}
+
+/**
  * 查询系统用户列表。
  */
 export async function listUsers() {
