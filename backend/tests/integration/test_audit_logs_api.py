@@ -492,7 +492,19 @@ def test_purge_audit_logs_keeps_system_audit_entry(
         response_status=200,
         result="success",
     )
-    db_session.add_all([business_log, system_log])
+    auth_log = AuditLog(
+        username_snapshot="admin",
+        action="auth.login",
+        resource_type="auth",
+        resource_id=7,
+        resource_name_snapshot="admin",
+        request_path="/api/v1/auth/login",
+        request_method="POST",
+        request_payload={"username": "admin", "password": "***"},
+        response_status=200,
+        result="success",
+    )
+    db_session.add_all([business_log, system_log, auth_log])
     db_session.commit()
 
     response = authenticated_superuser_client.post("/api/v1/audit-logs/purge")
@@ -507,8 +519,9 @@ def test_purge_audit_logs_keeps_system_audit_entry(
 
     assert "user.create" not in actions
     assert "audit_log.seed" in actions
+    assert "auth.login" in actions
     assert "audit_log.purge" in actions
-    assert resource_types == {"audit_log"}
+    assert resource_types == {"audit_log", "auth"}
 
     purge_log = next(log for log in remaining_logs if log.action == "audit_log.purge")
     assert purge_log.request_payload["purged_count"] == payload["purged_count"]

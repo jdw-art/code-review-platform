@@ -22,6 +22,8 @@ SENSITIVE_REQUEST_FIELDS = {
     "refresh_token",
 }
 
+SYSTEM_AUDIT_RESOURCE_TYPES = {"audit_log", "auth"}
+
 
 def sanitize_request_payload(payload: Any) -> Any:
     """递归脱敏请求载荷中的敏感字段，避免审计日志落明文密钥。"""
@@ -122,7 +124,9 @@ class AuditLogService:
 
     async def purge_business_logs(self, current_user: User, request: Request) -> int:
         """清理业务审计日志，但保留系统安全审计记录。"""
-        delete_statement = delete(AuditLog).where(AuditLog.resource_type != "audit_log")
+        delete_statement = delete(AuditLog).where(
+            AuditLog.resource_type.not_in(SYSTEM_AUDIT_RESOURCE_TYPES)
+        )
         purge_result = self.session.execute(delete_statement)
         purged_count = int(purge_result.rowcount or 0)
         self.record_action(
