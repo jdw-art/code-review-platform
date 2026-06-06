@@ -15,7 +15,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
     response_model=DashboardOverviewResponse,
     dependencies=[Depends(require_permission("dashboard:read"))],
     summary="获取仪表盘概览",
-    description="返回项目、审查记录与评分概览统计。需要 `dashboard:read` 权限。",
+    description="返回高保真控制台所需的概览统计、最近审查、模型摘要与分析图表。需要 `dashboard:read` 权限。",
 )
 async def get_dashboard_overview(
     service: DashboardService = Depends(),

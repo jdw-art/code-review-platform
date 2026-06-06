@@ -1,7 +1,9 @@
 import type {
   DashboardChartPoint,
+  DashboardModelSummary,
   DashboardOverviewResponse,
   DashboardRecentReviewItem,
+  DashboardRepoHealthItem,
 } from "../../lib/api/types";
 
 export interface ConsoleDashboardStat {
@@ -18,6 +20,8 @@ export interface ConsoleDashboardOverview {
   recentReviews: DashboardRecentReviewItem[];
   projectChart: DashboardChartPoint[];
   memberChart: DashboardChartPoint[];
+  models: DashboardModelSummary[];
+  repoHealth: DashboardRepoHealthItem[];
 }
 
 export function toConsoleDashboardOverview(
@@ -32,6 +36,10 @@ export function toConsoleDashboardOverview(
   const memberChart = Array.isArray(overview.member_chart)
     ? overview.member_chart
     : [];
+  const models = Array.isArray(overview.models) ? overview.models : [];
+  const repoHealth = Array.isArray(overview.repo_health)
+    ? overview.repo_health
+    : [];
 
   return {
     totalProjects: overview.total_projects,
@@ -42,5 +50,7 @@ export function toConsoleDashboardOverview(
     recentReviews,
     projectChart,
     memberChart,
+    models,
+    repoHealth,
   };
 }

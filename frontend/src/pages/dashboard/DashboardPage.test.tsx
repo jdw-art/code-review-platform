@@ -1,0 +1,162 @@
+import type { ReactElement } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { vi } from "vitest";
+
+import { DashboardPage } from "./DashboardPage";
+import { createQueryClient } from "../../lib/query/query-client";
+
+const { mockHttpGet } = vi.hoisted(() => ({
+  mockHttpGet: vi.fn(),
+}));
+
+vi.mock("../../lib/api/http", () => ({
+  http: {
+    get: mockHttpGet,
+  },
+}));
+
+vi.mock("../../lib/auth/auth-context", () => ({
+  useAuth: () => ({
+    user: {
+      id: 1,
+      username: "admin",
+      nickname: "管理员",
+      email: "admin@example.com",
+      phone: null,
+      is_active: true,
+      is_superuser: true,
+    },
+  }),
+}));
+
+function renderWithQuery(ui: ReactElement) {
+  const queryClient = createQueryClient();
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        {ui}
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+}
+
+test("renders the high-fidelity console dashboard from a single overview query", async () => {
+  mockHttpGet.mockResolvedValueOnce({
+    data: {
+      total_projects: 6,
+      active_projects: 4,
+      total_review_records: 31,
+      average_score: 87.4,
+      active_model_name: "Gemini 2.5 Pro",
+      recent_reviews: [
+        {
+          id: 101,
+          project_name: "Payments API",
+          title: "Harden webhook signature validation",
+          branch: "hotfix/signature",
+          commit_hash: "a1b2c3d4",
+          committer: "alice",
+          score: 92,
+          review_status: "reviewed",
+          summary: "Closed the signature timing leak and added regression coverage.",
+          created_at: "2026-06-05T09:20:00Z",
+        },
+      ],
+      project_chart: [
+        {
+          name: "Payments API",
+          commits: 12,
+          avg_score: 91.5,
+          additions: 1420,
+          deletions: 430,
+        },
+        {
+          name: "Console Web",
+          commits: 9,
+          avg_score: 85.2,
+          additions: 2180,
+          deletions: 810,
+        },
+      ],
+      member_chart: [
+        {
+          name: "alice",
+          commits: 8,
+          avg_score: 93.1,
+          additions: 920,
+          deletions: 230,
+        },
+        {
+          name: "bob",
+          commits: 7,
+          avg_score: 82.4,
+          additions: 1110,
+          deletions: 410,
+        },
+      ],
+      models: [
+        {
+          id: 1,
+          name: "Gemini 2.5 Pro",
+          provider: "google",
+          temperature: 0.2,
+          is_default: true,
+          is_active: true,
+        },
+        {
+          id: 2,
+          name: "Claude 3.7 Sonnet",
+          provider: "anthropic",
+          temperature: 0.1,
+          is_default: false,
+          is_active: true,
+        },
+      ],
+      repo_health: [
+        {
+          project_id: 1,
+          name: "Payments API",
+          is_active: true,
+          review_count: 12,
+          average_score: 91.5,
+          last_review_at: "2026-06-05T09:20:00Z",
+        },
+        {
+          project_id: 2,
+          name: "Legacy Worker",
+          is_active: false,
+          review_count: 4,
+          average_score: 76.2,
+          last_review_at: "2026-06-04T08:15:00Z",
+        },
+      ],
+    },
+  });
+
+  renderWithQuery(<DashboardPage />);
+
+  expect(await screen.findByText("管理员，欢迎进入代码复审控制中心")).toBeInTheDocument();
+  expect(
+    await screen.findByText("Harden webhook signature validation")
+  ).toBeInTheDocument();
+  expect(screen.getByText("活动模型: Gemini 2.5 Pro")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "仓库项目配置" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "切换审核模型" })).toBeInTheDocument();
+
+  expect(screen.getByText("实时审查流水线监视器")).toBeInTheDocument();
+  expect(screen.getByText("Harden webhook signature validation")).toBeInTheDocument();
+  expect(screen.getByText("当前智算节点")).toBeInTheDocument();
+  expect(screen.getByText("Claude 3.7 Sonnet")).toBeInTheDocument();
+  expect(screen.getByText("仓库健康审查")).toBeInTheDocument();
+  expect(screen.getByText("Legacy Worker")).toBeInTheDocument();
+
+  expect(screen.getByText("研发效能可视化度量中心")).toBeInTheDocument();
+  expect(screen.getByText("各项目代码提交频次")).toBeInTheDocument();
+  expect(screen.getByText("成员代码质量评分指数")).toBeInTheDocument();
+  expect(screen.getAllByText("Payments API").length).toBeGreaterThan(0);
+});

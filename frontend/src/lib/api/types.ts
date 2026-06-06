@@ -264,6 +264,8 @@ export interface DashboardOverviewResponse {
   recent_reviews?: DashboardRecentReviewItem[] | null;
   project_chart?: DashboardChartPoint[] | null;
   member_chart?: DashboardChartPoint[] | null;
+  models?: DashboardModelSummary[] | null;
+  repo_health?: DashboardRepoHealthItem[] | null;
 }
 
 export interface DashboardChartPoint {
@@ -285,6 +287,24 @@ export interface DashboardRecentReviewItem {
   review_status: string;
   summary: string | null;
   created_at: string;
+}
+
+export interface DashboardModelSummary {
+  id: number;
+  name: string;
+  provider: string;
+  temperature: number | null;
+  is_default: boolean;
+  is_active: boolean;
+}
+
+export interface DashboardRepoHealthItem {
+  project_id: number;
+  name: string;
+  is_active: boolean;
+  review_count: number;
+  average_score: number | null;
+  last_review_at: string | null;
 }
 
 export interface ReviewRecordAuthorOption {
