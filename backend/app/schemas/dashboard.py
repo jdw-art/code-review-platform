@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class DashboardChartPoint(BaseModel):
     """项目或成员维度的图表聚合点。"""
 
+    project_id: int | None = None
     name: str
     commits: int
     avg_score: float | None = None

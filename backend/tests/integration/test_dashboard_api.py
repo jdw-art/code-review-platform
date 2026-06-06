@@ -41,12 +41,23 @@ def test_dashboard_overview_aggregates_review_scores(
         is_active=False,
         review_enabled=True,
     )
-    db_session.add_all([first_project, second_project, third_project, fourth_project])
+    fifth_project = Project(
+        name="Payments API",
+        key="payments-api-legacy",
+        platform_type="github",
+        default_branch="main",
+        is_active=True,
+        review_enabled=True,
+    )
+    db_session.add_all(
+        [first_project, second_project, third_project, fourth_project, fifth_project]
+    )
     db_session.commit()
     db_session.refresh(first_project)
     db_session.refresh(second_project)
     db_session.refresh(third_project)
     db_session.refresh(fourth_project)
+    db_session.refresh(fifth_project)
 
     db_session.add_all(
         [
@@ -196,6 +207,25 @@ def test_dashboard_overview_aggregates_review_scores(
                 created_at=now - timedelta(minutes=10),
                 updated_at=now - timedelta(minutes=10),
             ),
+            ReviewRecord(
+                project_id=fifth_project.id,
+                event_type="push",
+                platform_type="github",
+                project_name_snapshot="Payments API Renamed Snapshot",
+                author="frank",
+                commit_count=4,
+                commit_messages=["feat: preserve duplicate project identity"],
+                title="Preserve duplicate project identity",
+                branch="feat/project-id",
+                last_commit_id="ghi6789jkl0123",
+                score=82,
+                review_status="reviewed",
+                summary="Ensures renamed snapshots still aggregate by stable project id.",
+                additions=64,
+                deletions=14,
+                created_at=now - timedelta(minutes=5),
+                updated_at=now - timedelta(minutes=5),
+            ),
         ]
     )
     db_session.commit()
@@ -204,10 +234,10 @@ def test_dashboard_overview_aggregates_review_scores(
 
     assert response.status_code == 200
     body = response.json()
-    assert body["total_projects"] == 4
-    assert body["active_projects"] == 2
-    assert body["total_review_records"] == 6
-    assert body["average_score"] == 84.5
+    assert body["total_projects"] == 5
+    assert body["active_projects"] == 3
+    assert body["total_review_records"] == 7
+    assert body["average_score"] == 84.0
     assert body["active_model_name"] == "Gemini 2.5 Pro"
     assert [item["name"] for item in body["models"]] == [
         "Gemini 2.5 Pro",
@@ -218,20 +248,21 @@ def test_dashboard_overview_aggregates_review_scores(
     assert len(body["recent_reviews"]) == 4
     assert body["recent_reviews"][0] == {
         "id": body["recent_reviews"][0]["id"],
-        "project_name": "Async Worker",
-        "title": "Harden worker retries",
-        "branch": "chore/retries",
-        "commit_hash": "efg5678hij9012",
-        "committer": "diana",
-        "score": 88.0,
+        "project_name": "Payments API Renamed Snapshot",
+        "title": "Preserve duplicate project identity",
+        "branch": "feat/project-id",
+        "commit_hash": "ghi6789jkl0123",
+        "committer": "frank",
+        "score": 82.0,
         "review_status": "reviewed",
-        "summary": "Worker retry loop now backs off and preserves context.",
-        "created_at": "2026-06-05T09:20:00Z",
+        "summary": "Ensures renamed snapshots still aggregate by stable project id.",
+        "created_at": "2026-06-05T09:25:00Z",
     }
-    assert body["recent_reviews"][-1]["project_name"] == "Payments API"
+    assert body["recent_reviews"][-1]["project_name"] == "Console Web"
 
     assert body["project_chart"] == [
         {
+            "project_id": first_project.id,
             "name": "Payments API",
             "commits": 5,
             "avg_score": 90.0,
@@ -239,6 +270,15 @@ def test_dashboard_overview_aggregates_review_scores(
             "deletions": 62,
         },
         {
+            "project_id": fifth_project.id,
+            "name": "Payments API",
+            "commits": 4,
+            "avg_score": 82.0,
+            "additions": 64,
+            "deletions": 14,
+        },
+        {
+            "project_id": second_project.id,
             "name": "Console Web",
             "commits": 3,
             "avg_score": 70.0,
@@ -246,6 +286,7 @@ def test_dashboard_overview_aggregates_review_scores(
             "deletions": 50,
         },
         {
+            "project_id": third_project.id,
             "name": "Async Worker",
             "commits": 1,
             "avg_score": 88.0,
@@ -253,6 +294,7 @@ def test_dashboard_overview_aggregates_review_scores(
             "deletions": 75,
         },
         {
+            "project_id": fourth_project.id,
             "name": "Ops Mirror",
             "commits": 1,
             "avg_score": None,
@@ -262,6 +304,7 @@ def test_dashboard_overview_aggregates_review_scores(
     ]
     assert body["member_chart"] == [
         {
+            "project_id": None,
             "name": "alice",
             "commits": 5,
             "avg_score": 90.0,
@@ -269,6 +312,15 @@ def test_dashboard_overview_aggregates_review_scores(
             "deletions": 62,
         },
         {
+            "project_id": None,
+            "name": "frank",
+            "commits": 4,
+            "avg_score": 82.0,
+            "additions": 64,
+            "deletions": 14,
+        },
+        {
+            "project_id": None,
             "name": "bob",
             "commits": 2,
             "avg_score": 70.0,
@@ -276,6 +328,7 @@ def test_dashboard_overview_aggregates_review_scores(
             "deletions": 32,
         },
         {
+            "project_id": None,
             "name": "diana",
             "commits": 1,
             "avg_score": 88.0,
@@ -283,6 +336,7 @@ def test_dashboard_overview_aggregates_review_scores(
             "deletions": 75,
         },
         {
+            "project_id": None,
             "name": "carol",
             "commits": 1,
             "avg_score": None,
@@ -290,6 +344,7 @@ def test_dashboard_overview_aggregates_review_scores(
             "deletions": 18,
         },
         {
+            "project_id": None,
             "name": "erin",
             "commits": 1,
             "avg_score": None,
@@ -297,7 +352,15 @@ def test_dashboard_overview_aggregates_review_scores(
             "deletions": 6,
         },
     ]
+    assert [point["project_id"] for point in body["project_chart"]] == [
+        first_project.id,
+        fifth_project.id,
+        second_project.id,
+        third_project.id,
+        fourth_project.id,
+    ]
     assert [point["name"] for point in body["project_chart"]] == [
+        "Payments API",
         "Payments API",
         "Console Web",
         "Async Worker",
@@ -321,12 +384,12 @@ def test_dashboard_overview_aggregates_review_scores(
             "last_review_at": "2026-06-05T09:20:00Z",
         },
         {
-            "project_id": second_project.id,
-            "name": "Console Web",
+            "project_id": fifth_project.id,
+            "name": "Payments API",
             "is_active": True,
-            "review_count": 2,
-            "average_score": 70.0,
-            "last_review_at": "2026-06-05T09:10:00Z",
+            "review_count": 1,
+            "average_score": 82.0,
+            "last_review_at": "2026-06-05T09:25:00Z",
         },
     ]
 
@@ -343,3 +406,35 @@ def test_dashboard_api_exposes_chinese_openapi(
     operation = response.json()["paths"]["/api/v1/dashboard/overview"]["get"]
     assert operation["summary"] == "获取仪表盘概览"
     assert "返回高保真控制台所需的概览统计" in operation["description"]
+
+
+def test_dashboard_overview_returns_null_when_no_model_is_active(
+    authenticated_superuser_client,
+    db_session,
+) -> None:
+    db_session.add_all(
+        [
+            LlmModel(
+                name="Inactive Default",
+                provider="openai",
+                model_code="inactive-default",
+                temperature=0.2,
+                is_default=True,
+                is_active=False,
+            ),
+            LlmModel(
+                name="Inactive Secondary",
+                provider="anthropic",
+                model_code="inactive-secondary",
+                temperature=0.1,
+                is_default=False,
+                is_active=False,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = authenticated_superuser_client.get("/api/v1/dashboard/overview")
+
+    assert response.status_code == 200
+    assert response.json()["active_model_name"] is None

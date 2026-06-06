@@ -121,7 +121,14 @@ function MetricListCard({
           items.map((item) => {
             const value = metricValue(item);
             return (
-              <div key={`${title}-${item.name}`} className="space-y-1.5">
+              <div
+                key={
+                  item.project_id === null
+                    ? `${title}-${item.name}`
+                    : `${title}-${item.project_id}`
+                }
+                className="space-y-1.5"
+              >
                 <div className="flex items-center justify-between gap-3 text-xs">
                   <span className="truncate font-medium text-slate-700">{item.name}</span>
                   <span className="font-mono text-slate-500">
@@ -182,7 +189,14 @@ function DiffMetricCard({
       <div className="mt-5 space-y-4">
         {items.length > 0 ? (
           items.map((item) => (
-            <div key={`${title}-${item.name}`} className="space-y-2">
+            <div
+              key={
+                item.project_id === null
+                  ? `${title}-${item.name}`
+                  : `${title}-${item.project_id}`
+              }
+              className="space-y-2"
+            >
               <div className="flex items-center justify-between gap-3 text-xs">
                 <span className="truncate font-medium text-slate-700">{item.name}</span>
                 <span className="font-mono text-slate-500">

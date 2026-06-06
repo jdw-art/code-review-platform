@@ -113,10 +113,7 @@ class DashboardService:
                 if model.is_default and model.is_active
             ),
             None,
-        ) or next((model for model in models if model.is_active), None) or next(
-            (model for model in models if model.is_default),
-            None,
-        )
+        ) or next((model for model in models if model.is_active), None)
 
         project_names = {project.id: project.name for project in projects}
         reviews_by_project: dict[int, list[_ReviewOverviewRow]] = defaultdict(list)
@@ -187,6 +184,7 @@ class DashboardService:
         """按稳定 project_id 聚合项目图表，再映射显示名。"""
         return [
             DashboardChartPoint(
+                project_id=project_id,
                 name=project_names.get(project_id, f"Project {project_id}"),
                 commits=bucket.commits,
                 avg_score=round(bucket.score_total / bucket.scored_reviews, 2)
@@ -213,6 +211,7 @@ class DashboardService:
         """构建项目/成员图表点。"""
         points = [
             DashboardChartPoint(
+                project_id=None,
                 name=name,
                 commits=bucket.commits,
                 avg_score=round(bucket.score_total / bucket.scored_reviews, 2)

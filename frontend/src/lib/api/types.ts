@@ -269,6 +269,7 @@ export interface DashboardOverviewResponse {
 }
 
 export interface DashboardChartPoint {
+  project_id: number | null;
   name: string;
   commits: number;
   avg_score: number | null;

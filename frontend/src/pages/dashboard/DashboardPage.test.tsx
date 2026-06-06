@@ -69,6 +69,7 @@ test("renders the high-fidelity console dashboard from a single overview query",
       ],
       project_chart: [
         {
+          project_id: 1,
           name: "Payments API",
           commits: 12,
           avg_score: 91.5,
@@ -76,6 +77,7 @@ test("renders the high-fidelity console dashboard from a single overview query",
           deletions: 430,
         },
         {
+          project_id: 2,
           name: "Console Web",
           commits: 9,
           avg_score: 85.2,
@@ -85,6 +87,7 @@ test("renders the high-fidelity console dashboard from a single overview query",
       ],
       member_chart: [
         {
+          project_id: null,
           name: "alice",
           commits: 8,
           avg_score: 93.1,
@@ -92,6 +95,7 @@ test("renders the high-fidelity console dashboard from a single overview query",
           deletions: 230,
         },
         {
+          project_id: null,
           name: "bob",
           commits: 7,
           avg_score: null,
@@ -179,4 +183,51 @@ test("renders an explicit error state when overview loading fails", async () => 
   expect(await screen.findByText("仪表盘概览加载失败")).toBeInTheDocument();
   expect(screen.getByText("overview unavailable")).toBeInTheDocument();
   expect(screen.queryByText("项目总数")).not.toBeInTheDocument();
+});
+
+test("renders duplicate project names without duplicate React keys", async () => {
+  const consoleErrorSpy = vi
+    .spyOn(console, "error")
+    .mockImplementation(() => undefined);
+
+  mockHttpGet.mockResolvedValueOnce({
+    data: {
+      total_projects: 2,
+      active_projects: 2,
+      total_review_records: 2,
+      average_score: 86,
+      active_model_name: null,
+      recent_reviews: [],
+      project_chart: [
+        {
+          project_id: 11,
+          name: "Shared Name",
+          commits: 6,
+          avg_score: 89,
+          additions: 320,
+          deletions: 120,
+        },
+        {
+          project_id: 29,
+          name: "Shared Name",
+          commits: 4,
+          avg_score: 83,
+          additions: 210,
+          deletions: 95,
+        },
+      ],
+      member_chart: [],
+      models: [],
+      repo_health: [],
+    },
+  });
+
+  renderWithQuery(<DashboardPage />);
+
+  expect(await screen.findAllByText("Shared Name")).toHaveLength(6);
+  expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+    expect.stringContaining('Encountered two children with the same key')
+  );
+
+  consoleErrorSpy.mockRestore();
 });
