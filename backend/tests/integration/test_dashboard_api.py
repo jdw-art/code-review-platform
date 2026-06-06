@@ -77,9 +77,9 @@ def test_dashboard_overview_aggregates_review_scores(
                 project_id=first_project.id,
                 event_type="merge_request",
                 platform_type="gitlab",
-                project_name_snapshot=first_project.name,
+                project_name_snapshot="Payments Service",
                 author="alice",
-                commit_count=1,
+                commit_count=3,
                 commit_messages=["feat: tighten auth"],
                 title="Add permission guardrails",
                 branch="main",
@@ -98,7 +98,7 @@ def test_dashboard_overview_aggregates_review_scores(
                 platform_type="gitlab",
                 project_name_snapshot=first_project.name,
                 author="alice",
-                commit_count=1,
+                commit_count=2,
                 commit_messages=["refactor: split dashboard serializer"],
                 title="Refactor dashboard serializer",
                 branch="release/metrics",
@@ -117,7 +117,7 @@ def test_dashboard_overview_aggregates_review_scores(
                 platform_type="github",
                 project_name_snapshot=second_project.name,
                 author="bob",
-                commit_count=1,
+                commit_count=2,
                 commit_messages=["feat: ship review filters"],
                 title="Ship review filters",
                 branch="feature/filters",
@@ -205,14 +205,14 @@ def test_dashboard_overview_aggregates_review_scores(
     assert body["project_chart"] == [
         {
             "name": "Payments API",
-            "commits": 2,
+            "commits": 5,
             "avg_score": 90.0,
             "additions": 275,
             "deletions": 62,
         },
         {
             "name": "Console Web",
-            "commits": 2,
+            "commits": 3,
             "avg_score": 70.0,
             "additions": 170,
             "deletions": 50,
@@ -228,10 +228,17 @@ def test_dashboard_overview_aggregates_review_scores(
     assert body["member_chart"] == [
         {
             "name": "alice",
-            "commits": 2,
+            "commits": 5,
             "avg_score": 90.0,
             "additions": 275,
             "deletions": 62,
+        },
+        {
+            "name": "bob",
+            "commits": 2,
+            "avg_score": 70.0,
+            "additions": 130,
+            "deletions": 32,
         },
         {
             "name": "diana",
@@ -241,19 +248,17 @@ def test_dashboard_overview_aggregates_review_scores(
             "deletions": 75,
         },
         {
-            "name": "bob",
-            "commits": 1,
-            "avg_score": 70.0,
-            "additions": 130,
-            "deletions": 32,
-        },
-        {
             "name": "carol",
             "commits": 1,
             "avg_score": 0.0,
             "additions": 40,
             "deletions": 18,
         },
+    ]
+    assert [point["name"] for point in body["project_chart"]] == [
+        "Payments API",
+        "Console Web",
+        "Async Worker",
     ]
     assert body["repo_health"] == [
         {

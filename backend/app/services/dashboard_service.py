@@ -69,13 +69,14 @@ class DashboardService:
             None,
         )
 
+        project_names = {project.id: project.name for project in projects}
         reviews_by_project: dict[int, list[ReviewRecord]] = defaultdict(list)
-        project_buckets: dict[str, _AggregateBucket] = defaultdict(_AggregateBucket)
+        project_buckets: dict[int, _AggregateBucket] = defaultdict(_AggregateBucket)
         member_buckets: dict[str, _AggregateBucket] = defaultdict(_AggregateBucket)
 
         for review in reviews:
             reviews_by_project[review.project_id].append(review)
-            self._apply_review(project_buckets[review.project_name_snapshot], review)
+            self._apply_review(project_buckets[review.project_id], review)
             self._apply_review(member_buckets[review.author], review)
 
         return DashboardOverviewResponse(
@@ -99,7 +100,7 @@ class DashboardService:
                 )
                 for review in reviews[:4]
             ],
-            project_chart=self._build_chart_points(project_buckets),
+            project_chart=self._build_project_chart(project_buckets, project_names),
             member_chart=self._build_chart_points(member_buckets),
             models=[
                 DashboardModelSummary(
@@ -118,12 +119,39 @@ class DashboardService:
     @staticmethod
     def _apply_review(bucket: _AggregateBucket, review: ReviewRecord) -> None:
         """把单条审查记录累计到图表聚合桶。"""
-        bucket.commits += 1
+        bucket.commits += review.commit_count
         bucket.additions += review.additions
         bucket.deletions += review.deletions
         if review.score is not None:
             bucket.score_total += review.score
             bucket.scored_reviews += 1
+
+    def _build_project_chart(
+        self,
+        buckets: dict[int, _AggregateBucket],
+        project_names: dict[int, str],
+    ) -> list[DashboardChartPoint]:
+        """按稳定 project_id 聚合项目图表，再映射显示名。"""
+        return [
+            DashboardChartPoint(
+                name=project_names.get(project_id, f"Project {project_id}"),
+                commits=bucket.commits,
+                avg_score=round(bucket.score_total / bucket.scored_reviews, 2)
+                if bucket.scored_reviews
+                else 0.0,
+                additions=bucket.additions,
+                deletions=bucket.deletions,
+            )
+            for project_id, bucket in sorted(
+                buckets.items(),
+                key=lambda item: (
+                    -item[1].commits,
+                    -item[1].additions,
+                    project_names.get(item[0], "").lower(),
+                    item[0],
+                ),
+            )
+        ]
 
     def _build_chart_points(
         self,
