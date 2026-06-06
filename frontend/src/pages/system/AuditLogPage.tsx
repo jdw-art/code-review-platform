@@ -66,6 +66,14 @@ export function AuditLogPage() {
     },
   });
 
+  function handlePurge() {
+    const confirmed = window.confirm("确认清理业务审计日志吗？系统安全日志会保留。");
+    if (!confirmed) {
+      return;
+    }
+    void purgeMutation.mutateAsync();
+  }
+
   return (
     <div className="space-y-4 rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-violet-50/40 p-4 shadow-sm">
       {toast ? (
@@ -77,7 +85,7 @@ export function AuditLogPage() {
         action={
           <button
             type="button"
-            onClick={() => void purgeMutation.mutateAsync()}
+            onClick={handlePurge}
             disabled={purgeMutation.isPending}
             className="rounded-full border border-rose-200 px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
           >

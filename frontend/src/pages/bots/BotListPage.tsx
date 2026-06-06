@@ -88,6 +88,7 @@ export function BotListPage() {
   const [editingBot, setEditingBot] = useState<NotificationBotResponse | null>(null);
   const [form, setForm] = useState<BotFormState>(emptyBotForm);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [testingBotId, setTestingBotId] = useState<number | null>(null);
   const [testFeedback, setTestFeedback] = useState<{
     title: string;
     message?: string;
@@ -128,6 +129,9 @@ export function BotListPage() {
 
   const testMutation = useMutation({
     mutationFn: async (row: NotificationBotResponse) => testBot(row.id),
+    onMutate: async (row) => {
+      setTestingBotId(row.id);
+    },
     onSuccess: async (testedBot) => {
       if (testedBot.last_test_status === "success") {
         setTestFeedback({
@@ -150,6 +154,9 @@ export function BotListPage() {
         message: error.message || "请稍后重试。",
         tone: "danger",
       });
+    },
+    onSettled: () => {
+      setTestingBotId(null);
     },
   });
 
@@ -236,7 +243,8 @@ export function BotListPage() {
           <button
             type="button"
             onClick={() => void testMutation.mutateAsync(row)}
-            className="rounded-full border border-cyan-200 px-3 py-1 text-xs text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-50"
+            disabled={testingBotId === row.id}
+            className="rounded-full border border-cyan-200 px-3 py-1 text-xs text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             测试
           </button>

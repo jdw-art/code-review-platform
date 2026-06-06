@@ -32,6 +32,7 @@ beforeEach(() => {
 });
 
 test("点击清空审计日志后调用 purge 接口并显示反馈", async () => {
+  const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
   mockHttpGet.mockResolvedValue({
     data: {
       items: [
@@ -71,8 +72,33 @@ test("点击清空审计日志后调用 purge 接口并显示反馈", async () =
   fireEvent.click(await screen.findByRole("button", { name: "清空审计日志" }));
 
   await waitFor(() => {
+    expect(confirmSpy).toHaveBeenCalledWith("确认清理业务审计日志吗？系统安全日志会保留。");
     expect(mockHttpPost).toHaveBeenCalledWith("/audit-logs/purge");
   });
   expect(await screen.findByText("已清理 3 条业务审计日志。")).toBeInTheDocument();
   expect(screen.getByText("系统安全日志已保留。")).toBeInTheDocument();
+
+  confirmSpy.mockRestore();
+});
+
+test("取消确认后不会调用 purge 接口", async () => {
+  const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+  mockHttpGet.mockResolvedValue({
+    data: {
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 20,
+      total_pages: 1,
+    },
+  });
+
+  renderWithQuery(<AuditLogPage />);
+
+  fireEvent.click(await screen.findByRole("button", { name: "清空审计日志" }));
+
+  expect(confirmSpy).toHaveBeenCalledWith("确认清理业务审计日志吗？系统安全日志会保留。");
+  expect(mockHttpPost).not.toHaveBeenCalled();
+
+  confirmSpy.mockRestore();
 });
