@@ -134,10 +134,14 @@ test("审计日志别名路由重定向后渲染控制台标题和激活导航",
   const auditAliasRoute = protectedRoutes?.children?.find(
     (route) => route.path === "/system/audit-logs"
   );
+  const auditAliasElement = auditAliasRoute?.element;
 
-  expect(isValidElement(auditAliasRoute?.element)).toBe(true);
-  expect(auditAliasRoute?.element.props.to).toBe("/audit-logs");
-  expect(auditAliasRoute?.element.props.replace).toBe(true);
+  expect(isValidElement(auditAliasElement)).toBe(true);
+  if (!isValidElement(auditAliasElement)) {
+    throw new Error("审计日志别名路由元素缺失");
+  }
+  expect(auditAliasElement.props.to).toBe("/audit-logs");
+  expect(auditAliasElement.props.replace).toBe(true);
 
   mockHttpGet.mockResolvedValue({
     data: {
