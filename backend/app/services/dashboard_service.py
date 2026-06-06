@@ -95,7 +95,11 @@ class DashboardService:
         total_projects = len(projects)
         active_projects = sum(1 for project in projects if project.is_active)
         total_review_records = len(review_rows)
-        scored_reviews = [review.score for review in review_rows if review.score is not None]
+        scored_reviews = [
+            review.score
+            for review in review_rows
+            if self._is_scored_review(review)
+        ]
         average_score = (
             round(sum(scored_reviews) / len(scored_reviews), 2)
             if scored_reviews
@@ -162,12 +166,16 @@ class DashboardService:
         )
 
     @staticmethod
-    def _apply_review(bucket: _AggregateBucket, review: _ReviewOverviewRow) -> None:
+    def _is_scored_review(review: _ReviewOverviewRow) -> bool:
+        """只有 reviewed 状态且有分数的记录才参与质量均分。"""
+        return review.review_status == "reviewed" and review.score is not None
+
+    def _apply_review(self, bucket: _AggregateBucket, review: _ReviewOverviewRow) -> None:
         """把单条审查记录累计到图表聚合桶。"""
         bucket.commits += review.commit_count
         bucket.additions += review.additions
         bucket.deletions += review.deletions
-        if review.score is not None:
+        if self._is_scored_review(review):
             bucket.score_total += review.score
             bucket.scored_reviews += 1
 
@@ -229,7 +237,11 @@ class DashboardService:
         items: list[DashboardRepoHealthItem] = []
         for project in projects:
             reviews = reviews_by_project.get(project.id, [])
-            scored_reviews = [review.score for review in reviews if review.score is not None]
+            scored_reviews = [
+                review.score
+                for review in reviews
+                if self._is_scored_review(review)
+            ]
             latest_review = max(reviews, key=lambda review: (review.created_at, review.id), default=None)
             items.append(
                 DashboardRepoHealthItem(
