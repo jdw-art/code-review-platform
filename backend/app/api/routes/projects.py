@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.db.models import User
-from app.schemas.pagination import PageQuery, PageResponse
+from app.schemas.pagination import PageResponse
 from app.schemas.project import (
     ProjectCreateRequest,
+    ProjectListQuery,
+    ProjectManualReviewResponse,
     ProjectOptionsResponse,
     ProjectResponse,
     ProjectStatusUpdateRequest,
@@ -13,6 +15,7 @@ from app.schemas.project import (
 )
 from app.security.deps import require_permission
 from app.services.project_service import ProjectService
+from app.services.project_review_service import ProjectReviewService
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -26,7 +29,7 @@ router = APIRouter(prefix="/projects", tags=["projects"])
     description="分页返回后台项目列表、模板绑定摘要与默认审查配置。需要 `project:read` 权限。",
 )
 async def list_projects(
-    query: PageQuery = Depends(),
+    query: ProjectListQuery = Depends(),
     service: ProjectService = Depends(),
 ) -> PageResponse[ProjectResponse]:
     """查询项目分页列表。"""
@@ -108,3 +111,39 @@ async def update_project_status(
 ) -> ProjectResponse:
     """修改指定项目的启停状态。"""
     return await service.update_status(current_user, project_id, payload)
+
+
+@router.delete(
+    "/{project_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="删除项目",
+    description="删除指定项目及其关联的审查记录等级联数据。需要 `project:delete` 权限。",
+)
+async def delete_project(
+    request: Request,
+    project_id: int,
+    current_user: User = Depends(require_permission("project:delete")),
+    service: ProjectService = Depends(),
+) -> Response:
+    """删除指定项目。"""
+    del request
+    await service.delete_project(current_user, project_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/{project_id}/manual-review",
+    response_model=ProjectManualReviewResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="手动触发项目审查",
+    description="按项目默认分支解析最新提交并创建真实 queued 审查记录。需要 `project:trigger-review` 权限。",
+)
+async def trigger_project_manual_review(
+    request: Request,
+    project_id: int,
+    current_user: User = Depends(require_permission("project:trigger-review")),
+    review_service: ProjectReviewService = Depends(),
+) -> ProjectManualReviewResponse:
+    """手动触发指定项目的默认分支审查。"""
+    del request
+    return await review_service.trigger_manual_review(current_user, project_id)

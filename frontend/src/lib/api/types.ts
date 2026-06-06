@@ -133,11 +133,22 @@ export interface ProjectResponse {
   description: string | null;
   is_active: boolean;
   review_enabled: boolean;
+  language: string | null;
+  owner: string | null;
+  score_average: number | null;
+  last_review_at: string | null;
   template: ProjectTemplateSummary | null;
   settings?: ProjectSettingsResponse | null;
   created_by: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProjectManualReviewResponse {
+  review_record_id: number;
+  status: string;
+  branch: string;
+  last_commit_id: string;
 }
 
 export interface AgentSessionResponse {

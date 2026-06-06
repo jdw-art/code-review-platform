@@ -5,6 +5,8 @@ import inspect
 import time
 from typing import Any
 
+from fastapi import HTTPException
+
 from app.core.config import BACKEND_DIR
 from app.core.env_compat import load_backend_env_compat
 from app.db.session import SessionLocal
@@ -75,10 +77,14 @@ def run_single_review_job(
         return False
 
     service = build_review_execution_service(session=session)
-    service.execute(
-        review_record_id=message.review_record_id,
-        attempt=message.attempt,
-    )
+    try:
+        service.execute(
+            review_record_id=message.review_record_id,
+            attempt=message.attempt,
+        )
+    except HTTPException as exc:
+        if exc.status_code != 404:
+            raise
     return True
 
 

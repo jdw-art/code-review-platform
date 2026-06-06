@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
+from fastapi import HTTPException
+
 from app.db.models import Project, ProjectTemplate, ReviewRecord
 from app.review.reviewer.protocol import ReviewRequest
 from app.schemas.integration_webhook import ReviewQueueMessage
@@ -203,6 +205,38 @@ def test_review_worker_processes_queued_record_to_reviewed(
 def test_review_worker_returns_false_when_queue_is_empty(db_session) -> None:
     del db_session
     assert run_single_review_job(FakeQueueService(), None) is False
+
+
+def test_review_worker_skips_queue_messages_for_deleted_review_records(
+    db_session,
+    monkeypatch,
+) -> None:
+    queue_service = FakeQueueService()
+    queue_service.enqueue(
+        review_record_id=999,
+        platform_type="gitlab",
+        attempt=1,
+    )
+
+    def fake_build_review_execution_service(*, session):
+        del session
+
+        class MissingRecordService:
+            def execute(self, *, review_record_id: int, attempt: int) -> None:
+                del review_record_id, attempt
+                raise HTTPException(status_code=404, detail="审查记录不存在。")
+
+        return MissingRecordService()
+
+    monkeypatch.setattr(
+        "app.workers.review_worker.build_review_execution_service",
+        fake_build_review_execution_service,
+    )
+
+    processed = run_single_review_job(queue_service, db_session)
+
+    assert processed is True
+    assert queue_service.messages == []
 
 
 def test_review_worker_module_exposes_cli_entrypoint() -> None:

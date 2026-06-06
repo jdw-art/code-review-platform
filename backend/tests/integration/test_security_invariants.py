@@ -191,6 +191,8 @@ def test_access_context_exposes_phase2_permissions_and_menus(
         "project:create",
         "project:update",
         "project:status",
+        "project:delete",
+        "project:trigger-review",
         "project_template:read",
         "project_template:create",
         "project_template:update",
