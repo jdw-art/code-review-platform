@@ -1,6 +1,0 @@
-{
-  "name": "AI Code Review Console",
-  "description": "An intelligent repository-scale AI code review and LLM Agent chatbot platform supporting automated pull request reviews, team analytics, and model management.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
