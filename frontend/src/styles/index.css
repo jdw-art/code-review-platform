@@ -1,11 +1,13 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
   color: #0f172a;
-  background-color: #f8fafc;
-  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background-color: #fafafa;
+  font-family: "Inter", "Outfit", ui-sans-serif, system-ui, sans-serif;
 }
 
 * {
@@ -16,10 +18,30 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background-color: #f1f5f9;
+  background-color: #fafafa;
   color: #0f172a;
+  font-family: "Inter", "Outfit", ui-sans-serif, system-ui, sans-serif;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
 }
 
 button,

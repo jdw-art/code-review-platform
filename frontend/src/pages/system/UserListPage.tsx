@@ -1,14 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "motion/react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, KeyRound, Mail, X } from "lucide-react";
 
-import { DataTable, type DataTableColumn } from "../../components/common/DataTable";
-import { DrawerForm } from "../../components/common/DrawerForm";
-import { ConsolePageHeader } from "../../components/console/ConsolePageHeader";
-import { StatusBadge } from "../../components/common/StatusBadge";
 import {
   assignUserRoles,
-  createUser,
-  deleteUser,
   listRoles,
   listUsers,
   updateUser,
@@ -17,13 +13,8 @@ import {
 import { normalizeOptionalText } from "../../lib/forms/serializers";
 import type { RoleResponse, UserResponse } from "../../lib/api/types";
 
-const inputClassName =
-  "mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-cyan-300 focus:bg-white disabled:cursor-not-allowed disabled:bg-slate-100";
-const labelClassName = "block text-sm font-medium text-slate-700";
-
 interface UserFormState {
   username: string;
-  password: string;
   nickname: string;
   email: string;
   phone: string;
@@ -33,7 +24,6 @@ interface UserFormState {
 
 const emptyUserForm: UserFormState = {
   username: "",
-  password: "",
   nickname: "",
   email: "",
   phone: "",
@@ -41,15 +31,14 @@ const emptyUserForm: UserFormState = {
   role_ids: [],
 };
 
-function buildCreatePayload(form: UserFormState) {
+function buildUserForm(row: UserResponse): UserFormState {
   return {
-    username: form.username.trim(),
-    password: form.password.trim(),
-    nickname: normalizeOptionalText(form.nickname),
-    email: normalizeOptionalText(form.email),
-    phone: normalizeOptionalText(form.phone),
-    is_superuser: form.is_superuser,
-    role_ids: form.role_ids,
+    username: row.username,
+    nickname: row.nickname ?? "",
+    email: row.email ?? "",
+    phone: row.phone ?? "",
+    is_superuser: row.is_superuser,
+    role_ids: (row.roles ?? []).map((role) => role.id),
   };
 }
 
@@ -62,97 +51,45 @@ function buildUpdatePayload(form: UserFormState) {
   };
 }
 
-function buildUserForm(row: UserResponse): UserFormState {
-  const roles = row.roles ?? [];
-
-  return {
-    username: row.username,
-    password: "",
-    nickname: row.nickname ?? "",
-    email: row.email ?? "",
-    phone: row.phone ?? "",
-    is_superuser: row.is_superuser,
-    role_ids: roles.map((role) => role.id),
-  };
-}
-
-function RoleSelection({
-  roles,
-  selectedRoleIds,
-  onToggle,
-}: {
-  roles: RoleResponse[];
-  selectedRoleIds: number[];
-  onToggle: (roleId: number) => void;
-}) {
-  if (roles.length === 0) {
-    return <p className="mt-2 text-sm text-slate-500">暂无可分配角色。</p>;
+function getRolesDisplay(roles?: UserResponse["roles"]) {
+  if (roles === undefined || roles === null || roles.length === 0) {
+    return "Normal User";
   }
 
-  return (
-    <div className="mt-3 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      {roles.map((role) => {
-        const checked = selectedRoleIds.includes(role.id);
-        return (
-          <label
-            key={role.id}
-            className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-          >
-            <input
-              type="checkbox"
-              checked={checked}
-              aria-label={`角色 ${role.name}`}
-              onChange={() => onToggle(role.id)}
-              className="mt-1 h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
-            />
-            <span>
-              <span className="font-medium text-slate-900">{role.name}</span>
-              <span className="ml-2 text-xs uppercase tracking-[0.18em] text-slate-400">
-                {role.code}
-              </span>
-              <span className="mt-1 block text-xs leading-5 text-slate-500">
-                {role.description ?? "未填写角色说明"}
-              </span>
-            </span>
-          </label>
-        );
-      })}
-    </div>
-  );
+  return roles.map((role) => role.name).join(", ");
 }
 
-/**
- * 用户管理页补齐新增、编辑、删除、角色分配与启停操作，方便直接维护后台账号。
- */
 export function UserListPage() {
   const queryClient = useQueryClient();
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const [editingUser, setEditingUser] = useState<UserResponse | null>(null);
   const [form, setForm] = useState<UserFormState>(emptyUserForm);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const { data, isLoading } = useQuery({
-    queryKey: ["users", "list"],
-    queryFn: () => listUsers(),
+
+  const { data: usersPage } = useQuery({
+    queryKey: ["users", "list", currentPage, pageSize],
+    queryFn: () => listUsers({ page: currentPage, page_size: pageSize }),
+    placeholderData: keepPreviousData,
   });
-  const { data: roles = [] } = useQuery({
-    queryKey: ["roles", "list"],
-    queryFn: () => listRoles(),
+  const { data: rolesPage } = useQuery({
+    queryKey: ["roles", "options", 1, 100],
+    queryFn: () => listRoles({ page: 1, page_size: 100 }),
   });
+  const users = usersPage?.items ?? [];
+  const roles = rolesPage?.items ?? [];
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (editingUser === null) {
-        return createUser(buildCreatePayload(form));
+        throw new Error("当前未选择用户。");
       }
 
       await updateUser(editingUser.id, buildUpdatePayload(form));
       return assignUserRoles(editingUser.id, form.role_ids);
     },
     onSuccess: async () => {
-      setDrawerOpen(false);
-      setEditingUser(null);
-      setForm(emptyUserForm);
-      setErrorMessage(null);
+      closeModal();
       await queryClient.invalidateQueries({ queryKey: ["users", "list"] });
     },
     onError: (error: Error) => {
@@ -167,25 +104,32 @@ export function UserListPage() {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (row: UserResponse) => deleteUser(row.id),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["users", "list"] });
-    },
-  });
+  const totalUsers = usersPage?.total ?? 0;
+  const totalPages = Math.max(usersPage?.total_pages ?? 0, 1);
+  const indexOfFirstUser = totalUsers === 0 ? 0 : (currentPage - 1) * pageSize;
+  const indexOfLastUser = totalUsers === 0 ? 0 : indexOfFirstUser + users.length;
+  const currentUsers = useMemo(() => users, [users]);
+  const activeUsers = useMemo(
+    () => users.filter((user) => user.is_active).length,
+    [users]
+  );
 
-  function openCreateDrawer() {
+  useEffect(() => {
+    if (usersPage !== undefined && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages, usersPage]);
+
+  function closeModal() {
     setEditingUser(null);
     setForm(emptyUserForm);
     setErrorMessage(null);
-    setDrawerOpen(true);
   }
 
-  function openEditDrawer(row: UserResponse) {
+  function openEditModal(row: UserResponse) {
     setEditingUser(row);
     setForm(buildUserForm(row));
     setErrorMessage(null);
-    setDrawerOpen(true);
   }
 
   function updateField<KeyT extends keyof UserFormState>(
@@ -207,9 +151,10 @@ export function UserListPage() {
     }));
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage(null);
+
     try {
       await saveMutation.mutateAsync();
     } catch (error) {
@@ -221,201 +166,379 @@ export function UserListPage() {
     }
   }
 
-  async function handleDelete(row: UserResponse) {
-    if (!window.confirm(`确认删除用户 ${row.username} 吗？`)) {
-      return;
-    }
-    await deleteMutation.mutateAsync(row);
-  }
-
-  const userColumns: DataTableColumn<UserResponse>[] = [
-    {
-      key: "username",
-      title: "用户名",
-    },
-    {
-      key: "nickname",
-      title: "昵称",
-      render: (row) => row.nickname ?? "-",
-    },
-    {
-      key: "email",
-      title: "邮箱",
-      render: (row) => row.email ?? "-",
-    },
-    {
-      key: "roles",
-      title: "角色",
-      render: (row) => {
-        const roles = row.roles ?? [];
-        return roles.length > 0 ? roles.map((role) => role.name).join("、") : "未分配角色";
-      },
-    },
-    {
-      key: "is_superuser",
-      title: "超级管理员",
-      render: (row) => (row.is_superuser ? "是" : "否"),
-    },
-    {
-      key: "is_active",
-      title: "状态",
-      render: (row) => <StatusBadge value={row.is_active} />,
-    },
-    {
-      key: "actions",
-      title: "操作",
-      render: (row) => (
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => openEditDrawer(row)}
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-          >
-            编辑
-          </button>
-          <button
-            type="button"
-            onClick={() => void statusMutation.mutateAsync(row)}
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-          >
-            {row.is_active ? "停用" : "启用"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleDelete(row)}
-            className="rounded-full border border-rose-200 px-3 py-1 text-xs text-rose-700 transition hover:border-rose-300 hover:bg-rose-50"
-          >
-            删除
-          </button>
-        </div>
-      ),
-    },
-  ];
-
   return (
-    <>
-      <div className="space-y-4 rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-sky-50/50 p-4 shadow-sm">
-        <ConsolePageHeader
-          title="系统用户中心"
-          description="在此维护后台账号、超级管理员标记与角色分配。"
-          action={
-            <button
-              type="button"
-              onClick={openCreateDrawer}
-              className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-            >
-              新建用户
-            </button>
-          }
-        />
-        <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <DataTable
-            columns={userColumns}
-            rows={data ?? []}
-            loading={isLoading}
-            emptyText="暂无用户数据"
-          />
-        </section>
+    <div className="p-6 space-y-4 max-w-7xl mx-auto">
+      <h2 className="sr-only">系统用户中心</h2>
+
+      <div className="bg-white py-3.5 px-5 rounded-xl border border-slate-200/80 shadow-3xs">
+        <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+          <KeyRound className="w-4 h-4 text-indigo-500 shrink-0" />
+          <span>RBAC 角色权限与路由控制模块</span>
+        </h3>
+        <p className="text-[11px] text-slate-500 mt-0.5">
+          管控系统的准入规则。数据列约束和唯一索引等已在 PostgreSQL SQL 等效实体中严格确立：
+        </p>
       </div>
 
-      <DrawerForm
-        open={drawerOpen}
-        title={editingUser === null ? "创建用户" : "编辑用户"}
-        description="维护用户基础资料、超级管理员标记和角色分配。"
-        onClose={() => setDrawerOpen(false)}
-      >
-        <form className="space-y-5" onSubmit={handleSubmit}>
-          {errorMessage ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {errorMessage}
+      <div className="space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden w-full">
+          <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <div className="space-y-0.5">
+              <h3 className="text-xs font-bold text-slate-800 font-mono uppercase">
+                用户管理
+              </h3>
+              <p className="text-[10px] text-slate-400">
+                查看系统用户账号、角色分配和启用状态
+              </p>
+            </div>
+            <span className="text-[10px] text-indigo-600 font-semibold font-mono bg-indigo-50 border border-indigo-100/50 px-2 py-0.5 rounded-sm">
+              Active Users ({activeUsers})
+            </span>
+          </div>
+
+          <div className="overflow-x-auto scrollbar-none">
+            <table className="w-full text-left border-collapse whitespace-nowrap text-xs">
+              <thead>
+                <tr className="bg-slate-50/50 text-slate-400 font-bold border-b border-slate-100">
+                  <th className="py-3 px-6">用户名</th>
+                  <th className="py-3 px-6">昵称</th>
+                  <th className="py-3 px-6">邮箱</th>
+                  <th className="py-3 px-6">角色</th>
+                  <th className="py-3 px-6">超管</th>
+                  <th className="py-3 px-6">状态</th>
+                  <th className="py-3 px-6 text-right">操作</th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+                {currentUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-10 text-center text-xs text-slate-400">
+                      暂无用户数据
+                    </td>
+                  </tr>
+                ) : (
+                  currentUsers.map((user) => {
+                    const isSelected = editingUser?.id === user.id;
+
+                    return (
+                      <tr
+                        key={user.id}
+                        className={`hover:bg-slate-50/40 transition-colors ${
+                          isSelected ? "bg-indigo-50/50 hover:bg-indigo-50/70" : ""
+                        }`}
+                      >
+                        <td className="py-3.5 px-6 font-semibold font-mono text-slate-900">
+                          {user.username}
+                        </td>
+                        <td className="py-3.5 px-6 text-slate-600 font-medium">
+                          {user.nickname || "—"}
+                        </td>
+                        <td className="py-3.5 px-6 text-slate-500 font-mono text-[11px]">
+                          {user.email ? (
+                            <span className="flex items-center gap-1.5">
+                              <Mail className="w-3 h-3 text-slate-300" />
+                              <span>{user.email}</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-6 text-slate-700 font-medium">
+                          <span className="bg-indigo-50/60 text-indigo-700 px-2.5 py-0.5 rounded-full text-[10px] border border-indigo-100/50 shadow-2xs">
+                            {getRolesDisplay(user.roles)}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-6">
+                          <span
+                            className={`px-2 py-0.5 rounded-sm font-bold text-[10px] uppercase ${
+                              user.is_superuser
+                                ? "bg-indigo-50 text-indigo-600 border border-indigo-100"
+                                : "bg-slate-100 text-slate-400"
+                            }`}
+                          >
+                            {user.is_superuser ? "SUPER" : "COMMON"}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-6 font-mono">
+                          <button
+                            type="button"
+                            onClick={() => void statusMutation.mutateAsync(user)}
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition-colors ${
+                              user.is_active
+                                ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
+                                : "bg-red-50 text-red-500 border border-red-100"
+                            }`}
+                          >
+                            {user.is_active ? "ACTIVE" : "DISABLED"}
+                          </button>
+                        </td>
+                        <td className="py-3.5 px-6 text-right">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(user)}
+                            className="px-3 py-1 bg-white hover:bg-slate-50 text-slate-700 hover:text-indigo-600 border border-slate-200/80 rounded-lg text-[11px] font-semibold transition-all shadow-2xs hover:shadow-sm cursor-pointer"
+                          >
+                            编辑
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {totalUsers > 0 ? (
+            <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 bg-white px-6 py-4 text-xs gap-4 select-none">
+              <div className="flex flex-col sm:flex-row items-center gap-3 text-slate-500 font-sans">
+                <div>
+                  显示 <span className="font-semibold text-slate-800">{indexOfFirstUser + 1}</span>{" "}
+                  至{" "}
+                  <span className="font-semibold text-slate-800">
+                    {indexOfLastUser}
+                  </span>{" "}
+                  条，共 <span className="font-semibold text-slate-800">{totalUsers}</span> 个用户
+                </div>
+
+                <div className="flex items-center gap-1.5 ml-0 sm:ml-4">
+                  <span>每页显示:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(event) => {
+                      setPageSize(Number(event.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="border border-slate-200 bg-slate-50 text-slate-800 rounded-md px-1.5 py-0.5 font-semibold text-xs cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-indigo-500/30"
+                  >
+                    <option value={3}>3 条</option>
+                    <option value={5}>5 条</option>
+                    <option value={10}>10 条</option>
+                    <option value={20}>20 条</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="p-1 px-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg cursor-pointer transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold active:scale-[0.98]"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>上一页</span>
+                </button>
+
+                <div className="flex items-center gap-1 font-mono text-slate-600 px-3">
+                  <span className="font-bold text-indigo-600">{currentPage}</span>
+                  <span className="text-slate-300">/</span>
+                  <span>{totalPages}</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((page) => Math.min(page + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="p-1 px-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg cursor-pointer transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold active:scale-[0.98]"
+                >
+                  <span>下一页</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           ) : null}
+        </div>
+      </div>
 
-          <label className={labelClassName}>
-            用户名
-            <input
-              value={form.username}
-              disabled={editingUser !== null}
-              onChange={(event) => updateField("username", event.target.value)}
-              className={inputClassName}
-            />
-          </label>
-
-          {editingUser === null ? (
-            <label className={labelClassName}>
-              初始密码
-              <input
-                type="password"
-                value={form.password}
-                onChange={(event) => updateField("password", event.target.value)}
-                className={inputClassName}
-              />
-            </label>
-          ) : null}
-
-          <label className={labelClassName}>
-            昵称
-            <input
-              value={form.nickname}
-              onChange={(event) => updateField("nickname", event.target.value)}
-              className={inputClassName}
-            />
-          </label>
-
-          <label className={labelClassName}>
-            邮箱
-            <input
-              value={form.email}
-              onChange={(event) => updateField("email", event.target.value)}
-              className={inputClassName}
-            />
-          </label>
-
-          <label className={labelClassName}>
-            手机号
-            <input
-              value={form.phone}
-              onChange={(event) => updateField("phone", event.target.value)}
-              className={inputClassName}
-            />
-          </label>
-
-          <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={form.is_superuser}
-              onChange={(event) => updateField("is_superuser", event.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
-            />
-            <span>设为超级管理员</span>
-          </label>
-
-          <div>
-            <p className={labelClassName}>角色分配</p>
-            <RoleSelection
-              roles={roles}
-              selectedRoleIds={form.role_ids}
-              onToggle={toggleRole}
-            />
-          </div>
-
-          <div className="flex items-center justify-end gap-3 border-t border-slate-200 pt-5">
-            <button
+      <AnimatePresence>
+        {editingUser ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.button
               type="button"
-              onClick={() => setDrawerOpen(false)}
-              className="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              aria-label="关闭用户编辑弹窗"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={closeModal}
+              className="absolute inset-0 bg-slate-900/45 backdrop-blur-xs"
+            />
+
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              initial={{ scale: 0.96, y: 12, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.96, y: 12, opacity: 0 }}
+              transition={{ type: "spring", duration: 0.35, bounce: 0.1 }}
+              className="relative w-full max-w-lg bg-white rounded-2xl border border-slate-200/80 shadow-2xl overflow-hidden z-10 flex flex-col max-h-[85vh]"
             >
-              取消
-            </button>
-            <button
-              type="submit"
-              className="rounded-full bg-slate-950 px-5 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-            >
-              保存用户
-            </button>
+              <div className="px-6 py-4.5 border-b border-slate-100 flex justify-between items-center bg-slate-50/65">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse" />
+                    <h3 className="text-sm font-bold text-slate-800">编辑用户角色与信息</h3>
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-normal">
+                    维护用户账户对应的联系资料、安全标记和角色授权
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-lg transition-all cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="contents">
+                <div className="p-6 space-y-4 overflow-y-auto max-h-[50vh] md:max-h-[55vh] scrollbar-thin">
+                  {errorMessage ? (
+                    <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-700 text-xs font-semibold">
+                      {errorMessage}
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 block font-mono">
+                      用户名 (username)
+                    </label>
+                    <div className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 font-mono text-xs select-all">
+                      {form.username}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="user-nickname" className="text-[10.5px] font-bold text-slate-700 block">
+                      昵称
+                    </label>
+                    <input
+                      id="user-nickname"
+                      aria-label="昵称"
+                      type="text"
+                      value={form.nickname}
+                      onChange={(event) => updateField("nickname", event.target.value)}
+                      placeholder="请输入昵称"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl text-slate-800 text-xs focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-600 focus:outline-hidden transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="user-email" className="text-[10.5px] font-bold text-slate-700 block">
+                      邮箱
+                    </label>
+                    <input
+                      id="user-email"
+                      aria-label="邮箱"
+                      type="text"
+                      value={form.email}
+                      onChange={(event) => updateField("email", event.target.value)}
+                      placeholder="请输入邮箱地址"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl text-slate-800 text-xs focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-600 focus:outline-hidden transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="user-phone" className="text-[10.5px] font-bold text-slate-700 block">
+                      手机号
+                    </label>
+                    <input
+                      id="user-phone"
+                      aria-label="手机号"
+                      type="text"
+                      value={form.phone}
+                      onChange={(event) => updateField("phone", event.target.value)}
+                      placeholder="请输入手机号"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl text-slate-800 text-xs focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-600 focus:outline-hidden transition-all"
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-3 p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer select-none transition-colors">
+                    <input
+                      type="checkbox"
+                      aria-label="设为超级管理员 (is_superuser)"
+                      checked={form.is_superuser}
+                      onChange={(event) => updateField("is_superuser", event.target.checked)}
+                      className="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500 rounded cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-slate-800">
+                      设为超级管理员 (is_superuser)
+                    </span>
+                  </label>
+
+                  <div className="space-y-2.5">
+                    <label className="text-[10.5px] font-bold text-slate-700 block">
+                      角色分配
+                    </label>
+
+                    <div className="space-y-2.5">
+                      {roles.length === 0 ? (
+                        <p className="text-[11px] text-slate-400">暂无可分配角色。</p>
+                      ) : (
+                        roles.map((role: RoleResponse) => {
+                          const isSelected = form.role_ids.includes(role.id);
+
+                          return (
+                            <label
+                              key={role.id}
+                              className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all cursor-pointer select-none ${
+                                isSelected
+                                  ? "bg-indigo-50/45 border-indigo-200 ring-2 ring-indigo-500/5"
+                                  : "bg-white border-slate-200 hover:bg-slate-50/50"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                aria-label={`角色 ${role.name}`}
+                                checked={isSelected}
+                                onChange={() => toggleRole(role.id)}
+                                className="mt-1 w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500 rounded cursor-pointer transition-all"
+                              />
+
+                              <div className="space-y-0.5">
+                                <div className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                                  <span>{role.name}</span>
+                                  <span className="text-[9px] font-mono text-slate-400 bg-slate-100 px-1 py-0.2 rounded font-semibold uppercase">
+                                    {role.code}
+                                  </span>
+                                </div>
+                                <p className="text-[10.5px] text-slate-500 font-light leading-relaxed">
+                                  {role.description ?? "未填写角色说明"}
+                                </p>
+                              </div>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-6 py-4.5 border-t border-slate-100 bg-slate-50/30 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-4 py-2 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200 text-slate-600 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                  >
+                    取消
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={saveMutation.isPending}
+                    className="px-5 py-2.5 bg-[#0b0c16] text-[#93c5fd] hover:bg-[#121424] active:bg-[#06070c] border border-[#2b3558] text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    保存修改
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           </div>
-        </form>
-      </DrawerForm>
-    </>
+        ) : null}
+      </AnimatePresence>
+    </div>
   );
 }

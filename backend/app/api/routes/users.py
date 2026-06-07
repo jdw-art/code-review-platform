@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.db.models import User
+from app.schemas.pagination import PageQuery, PageResponse
 from app.schemas.user import (
     UserCreateRequest,
     UserResetPasswordRequest,
@@ -21,14 +22,17 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.get(
     "",
-    response_model=list[UserResponse],
+    response_model=PageResponse[UserResponse],
     dependencies=[Depends(require_permission("user:read"))],
     summary="获取用户列表",
-    description="返回系统中的用户列表及其角色摘要。需要 `user:read` 权限。",
+    description="分页返回系统中的用户列表及其角色摘要。需要 `user:read` 权限。",
 )
-async def list_users(service: UserService = Depends()) -> list[UserResponse]:
-    """查询用户列表。"""
-    return await service.list_users()
+async def list_users(
+    query: PageQuery = Depends(),
+    service: UserService = Depends(),
+) -> PageResponse[UserResponse]:
+    """查询用户分页列表。"""
+    return await service.list_users(query)
 
 
 @router.get(

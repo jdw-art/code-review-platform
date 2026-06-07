@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.models import Menu, Permission, Role
@@ -15,6 +15,7 @@ from app.schemas.permission import (
     PermissionResponse,
     PermissionUpdateRequest,
 )
+from app.schemas.pagination import PageQuery, PageResponse
 from app.schemas.role import (
     RoleCreateRequest,
     RoleMenuAssignRequest,
@@ -35,8 +36,9 @@ class RBACService:
         self.session = session
         self.audit_log_service = AuditLogService(session)
 
-    async def list_roles(self) -> list[RoleResponse]:
-        """返回角色列表及其权限、菜单摘要。"""
+    async def list_roles(self, query: PageQuery) -> PageResponse[RoleResponse]:
+        """返回角色分页列表及其权限、菜单摘要。"""
+        total = self.session.scalar(select(func.count(Role.id))) or 0
         roles = self.session.scalars(
             select(Role)
             .options(
@@ -44,8 +46,15 @@ class RBACService:
                 selectinload(Role.menus),
             )
             .order_by(Role.id.asc())
+            .offset(query.offset)
+            .limit(query.page_size)
         ).all()
-        return [self._to_role_response(role) for role in roles]
+        return PageResponse.create(
+            items=[self._to_role_response(role) for role in roles],
+            total=total,
+            page=query.page,
+            page_size=query.page_size,
+        )
 
     async def get_role(self, role_id: int) -> RoleResponse:
         """按角色 ID 查询详情。"""

@@ -148,6 +148,23 @@ class ProjectTemplateService:
         )
         return self._to_template_response(template)
 
+    async def delete_template(
+        self,
+        current_user: User,
+        template_id: int,
+    ) -> None:
+        """删除指定项目模板。"""
+        template = self._get_template_or_404(template_id)
+        self._ensure_template_is_not_system(template)
+        self._ensure_template_can_be_deleted(template.id)
+        self.session.delete(template)
+        self.session.commit()
+        logger.info(
+            "Project template deleted template_id=%s by user_id=%s.",
+            template.id,
+            current_user.id,
+        )
+
     async def get_options(self) -> ProjectTemplateOptionsResponse:
         """返回项目模板管理页面需要的静态选项。"""
         return ProjectTemplateOptionsResponse(
@@ -195,6 +212,26 @@ class ProjectTemplateService:
             raise DomainConflictError(
                 code="PROJECT_TEMPLATE_IN_USE",
                 message="当前模板已被启用项目使用，解除绑定后才能停用。",
+            )
+
+    def _ensure_template_can_be_deleted(self, template_id: int) -> None:
+        """模板仍被任意项目引用时，不允许删除。"""
+        project_count = self.session.scalar(
+            select(func.count()).select_from(Project).where(Project.template_id == template_id)
+        ) or 0
+        if project_count > 0:
+            raise DomainConflictError(
+                code="PROJECT_TEMPLATE_IN_USE",
+                message="当前模板已被项目使用，解除绑定后才能删除。",
+            )
+
+    @staticmethod
+    def _ensure_template_is_not_system(template: ProjectTemplate) -> None:
+        """系统内置模板不允许删除。"""
+        if template.is_system:
+            raise DomainConflictError(
+                code="PROJECT_TEMPLATE_SYSTEM_TEMPLATE",
+                message="系统内置模板不允许删除。",
             )
 
     @staticmethod

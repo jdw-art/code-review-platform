@@ -197,6 +197,7 @@ def test_access_context_exposes_phase2_permissions_and_menus(
         "project_template:create",
         "project_template:update",
         "project_template:status",
+        "project_template:delete",
         "llm_model:read",
         "llm_model:create",
         "llm_model:update",

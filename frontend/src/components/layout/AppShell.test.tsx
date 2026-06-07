@@ -116,29 +116,15 @@ test("renders console shell navigation and topbar labels", async () => {
         {
           id: 2,
           parent_id: null,
-          name: "系统管理",
-          path: "/system",
+          name: "系统日志",
+          path: "/audit-logs",
           component: null,
-          icon: "folder-kanban",
+          icon: "scroll-text",
           sort: 20,
           visible: true,
           redirect: null,
           meta: null,
-          children: [
-            {
-              id: 3,
-              parent_id: 2,
-              name: "系统日志",
-              path: "/system/logs",
-              component: null,
-              icon: "scroll-text",
-              sort: 30,
-              visible: true,
-              redirect: null,
-              meta: null,
-              children: [],
-            },
-          ],
+          children: [],
         },
       ],
       must_change_password: false,
@@ -148,9 +134,14 @@ test("renders console shell navigation and topbar labels", async () => {
   renderAppShell();
 
   expect(await screen.findByText("AI Code Review")).toBeInTheDocument();
+  expect(screen.getByText("审查控制台")).toBeInTheDocument();
   expect(screen.getByText("欢迎回来")).toBeInTheDocument();
   expect(screen.getByText("系统日志")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "退出登录" })).toBeInTheDocument();
+  expect(screen.getByText("CONSOLE v2.1.0")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "同步状态" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "退出" })).toBeInTheDocument();
+  expect(screen.queryByText("智能控制台")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "退出登录" })).not.toBeInTheDocument();
   expect(http.get).toHaveBeenCalledWith("/me/access-context");
   expect(tokenStore.load).toHaveBeenCalled();
 });
@@ -190,7 +181,8 @@ test("renders an unassigned role label when the authenticated user has no roles"
 
   renderAppShell();
 
-  expect(await screen.findByText("reviewer")).toBeInTheDocument();
+  expect(await screen.findByText("CONSOLE v2.1.0")).toBeInTheDocument();
+  expect(screen.getByText("reviewer")).toBeInTheDocument();
   expect(screen.getByText("未分配角色")).toBeInTheDocument();
   expect(screen.queryByText("超级管理员")).not.toBeInTheDocument();
 });
@@ -231,8 +223,8 @@ test("renders the project agent console title for dynamic project routes", async
             {
               id: 2,
               parent_id: 1,
-              name: "项目智能体",
-              path: "/projects/1/agent",
+              name: "项目管理",
+              path: "/projects/:projectId/agent",
               component: null,
               icon: "bot",
               sort: 20,
@@ -252,5 +244,6 @@ test("renders the project agent console title for dynamic project routes", async
 
   expect((await screen.findAllByText("项目管理")).length).toBeGreaterThanOrEqual(2);
   expect(screen.getByText("项目智能体内容")).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "项目智能体" })).toHaveClass("bg-indigo-50");
+  expect(screen.getByRole("link", { name: /项目管理/ })).toHaveClass("bg-indigo-50");
+  expect(screen.getByRole("button", { name: "同步状态" })).toBeInTheDocument();
 });

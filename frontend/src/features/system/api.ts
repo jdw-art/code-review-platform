@@ -36,12 +36,17 @@ export interface RoleUpdatePayload {
   description: string | null;
 }
 
+export interface PaginationParams {
+  page: number;
+  page_size: number;
+}
+
 /**
  * 查询后台审计日志列表。
  */
-export async function listAuditLogs() {
+export async function listAuditLogs(params: PaginationParams) {
   const response = await http.get<PageResponse<AuditLogResponse>>("/audit-logs", {
-    params: { page: 1, page_size: 20 },
+    params,
   });
   return response.data;
 }
@@ -57,8 +62,10 @@ export async function purgeAuditLogs() {
 /**
  * 查询系统用户列表。
  */
-export async function listUsers() {
-  const response = await http.get<UserResponse[]>("/users");
+export async function listUsers(params: PaginationParams) {
+  const response = await http.get<PageResponse<UserResponse>>("/users", {
+    params,
+  });
   return response.data;
 }
 
@@ -117,8 +124,10 @@ export async function assignUserRoles(userId: number, roleIds: number[]) {
 /**
  * 查询系统角色列表。
  */
-export async function listRoles() {
-  const response = await http.get<RoleResponse[]>("/roles");
+export async function listRoles(params: PaginationParams) {
+  const response = await http.get<PageResponse<RoleResponse>>("/roles", {
+    params,
+  });
   return response.data;
 }
 

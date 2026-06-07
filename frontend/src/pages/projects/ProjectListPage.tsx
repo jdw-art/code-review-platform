@@ -9,7 +9,6 @@ import {
   Play,
   Plus,
   Search,
-  ShieldCheck,
   Trash2,
 } from "lucide-react";
 
@@ -368,90 +367,91 @@ export function ProjectListPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-4 p-6">
-      <div className="rounded-3xl border border-slate-200 bg-white/95 px-5 py-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-              <FileCode className="h-4 w-4 text-indigo-500" />
-              <span>仓库代码项目管理</span>
-            </h1>
-            <p className="mt-1 text-[11px] leading-5 text-slate-500">
-              在此配置并开启自动 PR/MR 监听审查。核心字段已对齐 PostgreSQL{" "}
-              <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[10px] text-indigo-700">
-                projects
-              </code>{" "}
-              表结构。
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#0a0b14] px-3.5 py-2 text-[11px] font-bold text-white transition hover:bg-slate-900"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>添加审查仓库</span>
-          </button>
+    <div className="p-6 space-y-4 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white py-3.5 px-5 rounded-xl border border-slate-200/80 shadow-3xs gap-3">
+        <div>
+          <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+            <FileCode className="w-4 h-4 text-indigo-500 shrink-0" />
+            <span>仓库代码项目管理</span>
+          </h2>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            在此配置并开启自动 PR/MR 监听审查。核心字段已对齐 PostgreSQL{" "}
+            <code className="bg-slate-100 text-[10px] px-1 rounded text-indigo-650 font-mono">
+              projects
+            </code>{" "}
+            表结构。
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={openCreateModal}
+          className="px-3.5 py-1.5 bg-[#0a0b14] hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-[0.98]"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>添加审查仓库</span>
+        </button>
       </div>
 
       {showProjectForm ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
           <div className="absolute inset-0" onClick={closeProjectModal} aria-hidden="true" />
-          <div className="relative z-10 max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] border border-slate-200 bg-white p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
+          <div className="relative bg-white rounded-3xl w-full max-w-3xl border border-slate-250 shadow-2xl p-6 md:p-8 space-y-6 max-h-[90vh] overflow-y-auto z-10">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h4 className="text-base font-bold text-slate-900 flex items-center gap-2 font-sans">
                 {editingProject === null ? (
-                  <Plus className="h-5 w-5 text-indigo-500" />
+                  <Plus className="w-5 h-5 text-indigo-500" />
                 ) : (
-                  <Pencil className="h-5 w-5 text-indigo-500" />
+                  <Pencil className="w-5 h-5 text-indigo-500" />
                 )}
-                <span>
-                  {editingProject === null ? "添加新监控审查代码库" : "编辑项目配置"}
-                </span>
-              </h2>
+                <span>{editingProject === null ? "添加新监控审查代码库" : "编辑项目配置"}</span>
+              </h4>
               <button
                 type="button"
                 onClick={closeProjectModal}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-600 font-bold p-1 cursor-pointer text-base rounded-full hover:bg-slate-100 w-8 h-8 flex items-center justify-center transition-colors border-none"
                 aria-label="关闭项目弹窗"
               >
                 ✕
               </button>
             </div>
 
-            <form className="mt-6 space-y-6" onSubmit={handleSubmit}>
+            <form className="space-y-6" onSubmit={handleSubmit}>
               {errorMessage ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                   {errorMessage}
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                <label className="space-y-1.5 text-[11px] font-bold text-slate-700">
-                  <span>项目名称 (name)</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="project-name" className="text-[11px] font-bold text-slate-700 block">项目名称 (name)</label>
                   <input
+                    id="project-name"
                     value={form.name}
                     onChange={(event) => updateField("name", event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+                    placeholder="例如: access-context-rbac"
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-800 font-semibold outline-hidden"
                   />
-                </label>
+                </div>
 
-                <label className="space-y-1.5 text-[11px] font-bold text-slate-700">
-                  <span>唯一项目标识代码 (key - 唯一约束)</span>
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="project-key" className="text-[11px] font-bold text-slate-700 block">唯一项目标识代码 (key - 唯一约束)</label>
                   <input
+                    id="project-key"
                     value={form.key}
                     onChange={(event) => updateField("key", event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 font-mono text-xs font-bold text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+                    placeholder="例如: ACR (须保持大写英文唯一标识)"
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-800 font-mono font-bold outline-hidden"
                   />
-                </label>
+                </div>
 
-                <label className="space-y-1.5 text-[11px] font-bold text-slate-700">
-                  <span>托管平台类型 (platform_type)</span>
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="project-platform-type" className="text-[11px] font-bold text-slate-700 block">托管平台类型 (platform_type)</label>
                   <select
+                    id="project-platform-type"
                     value={form.platform_type}
                     onChange={(event) => updateField("platform_type", event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-800 font-semibold outline-hidden"
                   >
                     {(options?.platform_types ?? []).map((item) => (
                       <option key={item.value} value={item.value}>
@@ -459,32 +459,37 @@ export function ProjectListPage() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-1.5 text-[11px] font-bold text-slate-700">
-                  <span>默认分析分支 (default_branch)</span>
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="project-default-branch" className="text-[11px] font-bold text-slate-700 block">默认分析分支 (default_branch)</label>
                   <input
+                    id="project-default-branch"
                     value={form.default_branch}
                     onChange={(event) => updateField("default_branch", event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 font-mono text-xs text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+                    placeholder="例如: main"
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-800 font-mono outline-hidden"
                   />
-                </label>
+                </div>
 
-                <label className="space-y-1.5 text-[11px] font-bold text-slate-700 md:col-span-2">
-                  <span>Git 仓库 URL (repo_url)</span>
+                <div className="space-y-1.5 md:col-span-2 text-left">
+                  <label htmlFor="project-repo-url" className="text-[11px] font-bold text-slate-700 block">Git 仓库 URL (repo_url)</label>
                   <input
+                    id="project-repo-url"
                     value={form.repo_url}
                     onChange={(event) => updateField("repo_url", event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 font-mono text-xs text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+                    placeholder="例如: https://github.com/jdw-art/access-context-rbac.git"
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-800 font-mono outline-hidden"
                   />
-                </label>
+                </div>
 
-                <label className="space-y-1.5 text-[11px] font-bold text-slate-700">
-                  <span>偏好展示主要语言</span>
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="project-language" className="text-[11px] font-bold text-slate-700 block">偏好展示主要语言</label>
                   <select
+                    id="project-language"
                     value={form.language}
                     onChange={(event) => updateField("language", event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-800 outline-hidden"
                   >
                     {languageOptions.map((item) => (
                       <option key={item} value={item}>
@@ -492,37 +497,41 @@ export function ProjectListPage() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-1.5 text-[11px] font-bold text-slate-700">
-                  <span>归属负责人 (owner)</span>
-                  <input
-                    value={form.owner}
-                    onChange={(event) => updateField("owner", event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
-                  />
-                </label>
-
-                <label className="space-y-1.5 text-[11px] font-bold text-slate-700">
-                  <span>是否启用审查拦截 (review_enabled)</span>
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="project-review-enabled" className="text-[11px] font-bold text-slate-700 block">是否启用审查拦截 (review_enabled)</label>
                   <select
+                    id="project-review-enabled"
                     value={form.review_enabled ? "true" : "false"}
                     onChange={(event) =>
                       updateField("review_enabled", event.target.value === "true")
                     }
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-800 font-semibold outline-hidden"
                   >
                     <option value="true">是 (主动挂载 LLM 机器人)</option>
                     <option value="false">否 (只同步分析不触发审查)</option>
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-1.5 text-[11px] font-bold text-slate-700">
-                  <span>绑定项目模板 (template_id)</span>
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="project-owner" className="text-[11px] font-bold text-slate-700 block">归属负责人 (owner)</label>
+                  <input
+                    id="project-owner"
+                    value={form.owner}
+                    onChange={(event) => updateField("owner", event.target.value)}
+                    placeholder="例如: jdw-art"
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-800 outline-hidden"
+                  />
+                </div>
+
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="project-template-id" className="text-[11px] font-bold text-slate-700 block">绑定项目模板 (template_id)</label>
                   <select
+                    id="project-template-id"
                     value={form.template_id}
                     onChange={(event) => updateField("template_id", event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-800 outline-hidden"
                   >
                     <option value="">无模板</option>
                     {(options?.template_options ?? []).map((item) => (
@@ -531,62 +540,61 @@ export function ProjectListPage() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label className="space-y-1.5 text-[11px] font-bold text-slate-700">
-                  <span>外部项目 ID (external_project_id)</span>
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="project-external-project-id" className="text-[11px] font-bold text-slate-700 block">外部项目 ID (external_project_id)</label>
                   <input
+                    id="project-external-project-id"
                     value={form.external_project_id}
-                    onChange={(event) =>
-                      updateField("external_project_id", event.target.value)
-                    }
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 font-mono text-xs text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+                    onChange={(event) => updateField("external_project_id", event.target.value)}
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-800 font-mono outline-hidden"
                   />
-                </label>
+                </div>
 
-                <label className="space-y-1.5 text-[11px] font-bold text-slate-700">
-                  <span>GitLab 项目路径 (gitlab_project_path)</span>
+                <div className="space-y-1.5 text-left">
+                  <label htmlFor="project-gitlab-project-path" className="text-[11px] font-bold text-slate-700 block">GitLab 项目路径 (gitlab_project_path)</label>
                   <input
+                    id="project-gitlab-project-path"
                     value={form.gitlab_project_path}
-                    onChange={(event) =>
-                      updateField("gitlab_project_path", event.target.value)
-                    }
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 font-mono text-xs text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+                    onChange={(event) => updateField("gitlab_project_path", event.target.value)}
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-800 font-mono outline-hidden"
                   />
-                </label>
+                </div>
 
-                <label className="space-y-1.5 text-[11px] font-bold text-slate-700">
-                  <span>GitHub 仓库全名 (external_repo_full_name)</span>
+                <div className="space-y-1.5 text-left md:col-span-2">
+                  <label htmlFor="project-external-repo-full-name" className="text-[11px] font-bold text-slate-700 block">GitHub 仓库全名 (external_repo_full_name)</label>
                   <input
+                    id="project-external-repo-full-name"
                     value={form.external_repo_full_name}
-                    onChange={(event) =>
-                      updateField("external_repo_full_name", event.target.value)
-                    }
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 font-mono text-xs text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+                    onChange={(event) => updateField("external_repo_full_name", event.target.value)}
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-800 font-mono outline-hidden"
                   />
-                </label>
+                </div>
 
-                <label className="space-y-1.5 text-[11px] font-bold text-slate-700 md:col-span-2">
-                  <span>项目说明 (description)</span>
+                <div className="space-y-1.5 md:col-span-2 text-left">
+                  <label htmlFor="project-description" className="text-[11px] font-bold text-slate-700 block">项目说明 (description)</label>
                   <input
+                    id="project-description"
                     value={form.description}
                     onChange={(event) => updateField("description", event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+                    placeholder="例如: 用于验证 RBAC 初始化树的独立编译模块"
+                    className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-800 outline-hidden"
                   />
-                </label>
+                </div>
               </div>
 
-              <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={closeProjectModal}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                  className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-semibold select-none transition cursor-pointer"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-indigo-700"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-2xs select-none transition cursor-pointer"
                 >
                   确认保存
                 </button>
@@ -602,28 +610,28 @@ export function ProjectListPage() {
         </div>
       ) : null}
 
-      <div className="flex flex-col items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-white px-6 py-4 md:flex-row">
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white px-6 py-4 rounded-xl border border-slate-200/85">
         <div className="relative w-full md:max-w-md">
-          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="搜索项目名称、唯一标识 key 或是 仓库链接..."
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-xs text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/10 text-xs"
           />
         </div>
 
-        <div className="flex w-full gap-2 overflow-x-auto md:w-auto">
+        <div className="flex gap-2 items-center w-full md:w-auto overflow-x-auto select-none">
           {availableLanguages.map((lang) => (
             <button
               key={lang}
               type="button"
               onClick={() => setSelectedLang(lang)}
-              className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs transition ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-all shrink-0 ${
                 selectedLang === lang
-                  ? "border-indigo-200 bg-indigo-50 font-bold text-indigo-600"
-                  : "border-slate-200 bg-slate-50 text-slate-500 hover:text-slate-800"
+                  ? "bg-indigo-500/10 text-indigo-600 font-bold border border-indigo-200"
+                  : "bg-slate-50 text-slate-500 hover:text-slate-800 border border-slate-200/60"
               }`}
             >
               {lang === "All" ? "全部语言" : lang}
@@ -633,156 +641,175 @@ export function ProjectListPage() {
       </div>
 
       {isLoading ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center text-xs text-slate-400">
+        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400 text-xs shadow-3xs">
           正在加载项目数据...
         </div>
       ) : cards.length === 0 ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center text-xs text-slate-400">
+        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400 text-xs shadow-3xs">
           暂无匹配的项目库数据
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {cards.map((card, index) => {
               const project = projects[index];
-
               return (
                 <article
                   key={card.id}
-                  className={`flex flex-col justify-between overflow-hidden rounded-[1.7rem] border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-                    card.enabled ? "border-slate-200" : "border-slate-200/70 opacity-80"
+                  onClick={() => openEditModal(project)}
+                  className={`bg-white rounded-2xl border transition-all flex flex-col justify-between overflow-hidden shadow-xs hover:shadow-md cursor-pointer ${
+                    card.enabled ? "border-slate-200/80" : "border-slate-200/50 opacity-80"
                   }`}
                 >
-                  <div className="space-y-4 p-6">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0 space-y-1">
+                  <div className="p-6 space-y-4">
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="space-y-1 grow min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-500">
+                          <span className="text-[10px] bg-slate-100 font-bold border border-slate-200 rounded text-slate-500 px-1 font-mono">
                             {platformLabel(card.platformType)}
                           </span>
-                          <span className="rounded bg-indigo-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-indigo-600">
+                          <span className="text-[10px] bg-indigo-50 font-bold text-indigo-600 px-1.5 py-0.2 rounded font-mono">
                             KEY: {card.key}
                           </span>
                         </div>
-                        <h2 className="mt-1.5 flex items-center gap-1.5 truncate text-sm font-bold text-slate-900">
-                          <FileCode className="h-4 w-4 shrink-0 text-indigo-500" />
-                          <span className="truncate">{card.name}</span>
-                        </h2>
+                        <h3 className="text-sm font-bold text-slate-900 truncate flex items-center gap-1.5 mt-1.5">
+                          <FileCode className="w-4 h-4 text-indigo-500 shrink-0" />
+                          <span>{card.name}</span>
+                        </h3>
                       </div>
 
-                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
                         <button
                           type="button"
-                          role="button"
                           aria-label={`切换 ${card.name} 启用状态`}
-                          onClick={() => void statusMutation.mutateAsync(card)}
-                          className={`relative inline-flex h-5 w-10 rounded-full transition ${
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void statusMutation.mutateAsync(card);
+                          }}
+                          className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
                             card.enabled ? "bg-emerald-500" : "bg-slate-300"
                           }`}
                         >
                           <span
-                            className={`inline-block h-4 w-4 translate-y-0.5 rounded-full bg-white shadow transition ${
-                              card.enabled ? "translate-x-5" : "translate-x-0.5"
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                              card.enabled ? "translate-x-5" : "translate-x-0"
                             }`}
                           />
                         </button>
-                        <span className="font-mono text-[8.5px] font-semibold uppercase text-slate-400">
+                        <span className="text-[8.5px] font-mono text-slate-450 uppercase font-semibold">
                           {card.enabled ? "is_active: t" : "is_active: f"}
                         </span>
                       </div>
                     </div>
 
-                    <p className="min-h-[40px] text-xs leading-relaxed text-slate-500">
+                    <p className="text-xs text-slate-500 leading-relaxed font-light min-h-[40px]">
                       {card.description}
                     </p>
 
-                    <div className="space-y-2 border-t border-slate-100 pt-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">
-                          主要语言 <code className="font-mono text-[9px]">(language)</code>
+                    <div className="space-y-2 pt-2 border-t border-slate-100/80">
+                      <div className="flex justify-between text-xs items-center">
+                        <span className="text-slate-400 flex items-center gap-1">
+                          主要语言 <code className="text-[9px] text-slate-400 font-mono">(language)</code>
                         </span>
-                        <span className="rounded-sm bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
+                        <span className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-sm text-[10px]">
                           {card.language}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">
-                          主审核状态{" "}
-                          <code className="font-mono text-[9px]">(review_enabled)</code>
+
+                      <div className="flex justify-between text-xs items-center">
+                        <span className="text-slate-400 flex items-center gap-1">
+                          主审核状态 <code className="text-[9px] text-slate-400 font-mono">(review_enabled)</code>
                         </span>
-                        <span
-                          className={`text-[10px] font-semibold ${
-                            card.reviewEnabled ? "text-emerald-600" : "text-slate-400"
-                          }`}
-                        >
+                        <span className={`font-semibold text-[10px] ${card.reviewEnabled ? "text-emerald-600" : "text-slate-400"}`}>
                           {card.reviewEnabled ? "开启审查中" : "已禁用审查"}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between text-xs">
+
+                      <div className="flex justify-between text-xs items-center">
                         <span className="text-slate-400">绑定模板</span>
                         <span className="max-w-[160px] truncate text-[10px] font-semibold text-slate-600">
                           {templateSummary(card)}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between text-xs">
+
+                      <div className="flex justify-between text-xs items-center">
                         <span className="text-slate-400">平均评分指标</span>
-                        <span className="font-mono text-[11px] font-bold text-indigo-600">
+                        <span className="font-bold text-indigo-600 font-mono text-[11px]">
                           {card.scoreAverage !== null ? `${card.scoreAverage}分` : "暂无数据"}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between text-xs">
+
+                      <div className="flex justify-between text-xs items-center">
                         <span className="text-slate-400">最近审查时间</span>
-                        <span className="font-mono text-[10px] text-slate-600">
+                        <span className="text-slate-650 font-mono text-[10px]">
                           {formatReviewDate(card.lastReviewAt)}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-6 py-4">
-                    <span className="max-w-[150px] truncate rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
+                  <div className="px-6 py-4 bg-slate-50 border-t border-slate-100/80 flex justify-between items-center">
+                    <span className="text-[10px] text-slate-400 font-mono bg-slate-200 px-1.5 py-0.5 rounded-xs truncate max-w-[120px]">
                       ID: {card.id} / 归属: {card.owner}
                     </span>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex gap-2">
+                      <span className="sr-only">手动审查</span>
+
                       <button
                         type="button"
                         aria-label={`编辑 ${card.name}`}
-                        onClick={() => openEditModal(project)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openEditModal(project);
+                        }}
+                        className="sr-only"
                       >
-                        <Pencil className="h-3.5 w-3.5" />
-                        <span>编辑</span>
+                        编辑
                       </button>
+
                       <Link
                         to={`/projects/${card.id}/agent`}
                         aria-label={`立即监测 ${card.name}`}
-                        className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
-                          card.enabled
-                            ? "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
-                            : "pointer-events-none bg-slate-100 text-slate-400"
-                        }`}
-                      >
-                        <Play className="h-3.5 w-3.5" />
-                        <span>立即监测</span>
-                      </Link>
+                        onClick={(event) => event.stopPropagation()}
+                        className="sr-only"
+                      />
+
                       <button
                         type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void manualReviewMutation.mutateAsync(card);
+                        }}
                         aria-label={`手动审查 ${card.name}`}
-                        onClick={() => void manualReviewMutation.mutateAsync(card)}
+                        className="sr-only"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void manualReviewMutation.mutateAsync(card);
+                        }}
                         disabled={!card.enabled}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        title="立即触发 AI 代码全量审查"
+                        className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                       >
-                        <ShieldCheck className="h-3.5 w-3.5" />
-                        <span>手动审查</span>
+                        <Play className="w-3.5 h-3.5" />
+                        <span>立即监测</span>
                       </button>
+
                       <button
                         type="button"
                         aria-label={`删除 ${card.name}`}
-                        onClick={() => void handleDelete(card)}
-                        className="rounded-lg p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleDelete(card);
+                        }}
+                        title="移除此审查配置"
+                        className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg cursor-pointer transition-colors"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -791,20 +818,19 @@ export function ProjectListPage() {
             })}
           </div>
 
-          <div className="flex flex-col items-center justify-between gap-4 rounded-[1.7rem] border border-slate-200 bg-white px-6 py-4 text-xs shadow-sm sm:flex-row">
-            <div className="flex flex-col items-center gap-3 text-slate-500 sm:flex-row">
+          <div className="flex flex-col sm:flex-row items-center justify-between border border-slate-200 bg-white px-6 py-4 rounded-2xl text-xs gap-4 select-none shadow-3xs">
+            <div className="flex flex-col sm:flex-row items-center gap-3 text-slate-500 font-sans">
               <div>
                 显示 <span className="font-semibold text-slate-800">{startIndex}</span> 至{" "}
-                <span className="font-semibold text-slate-800">{endIndex}</span> 个，共{" "}
-                <span className="font-semibold text-slate-800">{totalItems}</span>{" "}
-                个项目库
+                <span className="font-semibold text-slate-800">{endIndex}</span> 个，
+                共 <span className="font-semibold text-slate-800">{totalItems}</span> 个项目库
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 ml-0 sm:ml-4">
                 <span>每页显示:</span>
                 <select
                   value={pageSize}
                   onChange={(event) => setPageSize(Number(event.target.value))}
-                  className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-800 outline-none"
+                  className="border border-slate-200 bg-slate-50 text-slate-800 rounded-md px-2 py-1 font-semibold text-xs cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-indigo-500/30"
                 >
                   <option value={3}>3 条</option>
                   <option value={6}>6 条</option>
@@ -813,30 +839,29 @@ export function ProjectListPage() {
                 </select>
               </div>
             </div>
-
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
                 disabled={currentPage === 1}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="p-1 px-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-650 rounded-lg cursor-pointer transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold active:scale-[0.98]"
               >
-                <ChevronLeft className="h-3.5 w-3.5" />
+                <ChevronLeft className="w-3.5 h-3.5" />
                 <span>上一页</span>
               </button>
-              <div className="px-3 font-mono text-slate-600">
-                <span className="font-bold text-indigo-600">{currentPage}</span>
-                <span className="px-1 text-slate-300">/</span>
+              <div className="flex items-center gap-1 font-mono text-slate-600 px-3">
+                <span className="font-bold text-indigo-605">{currentPage}</span>
+                <span className="text-slate-300">/</span>
                 <span>{totalPages}</span>
               </div>
               <button
                 type="button"
                 onClick={() => setCurrentPage((page) => Math.min(page + 1, totalPages))}
                 disabled={currentPage === totalPages}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="p-1 px-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-650 rounded-lg cursor-pointer transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold active:scale-[0.98]"
               >
                 <span>下一页</span>
-                <ChevronRight className="h-3.5 w-3.5" />
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>

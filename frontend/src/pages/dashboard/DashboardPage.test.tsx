@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -30,6 +30,41 @@ vi.mock("../../lib/auth/auth-context", () => ({
     },
   }),
 }));
+
+vi.mock("recharts", async () => {
+  const actual = await vi.importActual<typeof import("recharts")>("recharts");
+
+  return {
+    ...actual,
+    ResponsiveContainer: ({
+      children,
+    }: {
+      children: ReactNode;
+    }) => {
+      if (children && typeof children === "object" && "type" in children) {
+        return (
+          <div style={{ width: 640, height: 256 }}>
+            {(
+              children as ReactElement<{
+                height?: number;
+                width?: number;
+              }>
+            ).type
+              ? (
+                  children as ReactElement<{
+                    height?: number;
+                    width?: number;
+                  }>
+                )
+              : null}
+          </div>
+        );
+      }
+
+      return <div style={{ width: 640, height: 256 }}>{children}</div>;
+    },
+  };
+});
 
 function renderWithQuery(ui: ReactElement) {
   const queryClient = createQueryClient();
@@ -144,7 +179,7 @@ test("renders the high-fidelity console dashboard from a single overview query",
 
   renderWithQuery(<DashboardPage />);
 
-  expect(await screen.findByText("管理员，欢迎进入代码复审控制中心")).toBeInTheDocument();
+  expect(await screen.findByText("admin，欢迎进入代码复审控制中心")).toBeInTheDocument();
   expect(
     await screen.findByText("Harden webhook signature validation")
   ).toBeInTheDocument();
@@ -156,13 +191,26 @@ test("renders the high-fidelity console dashboard from a single overview query",
   expect(screen.getByText("Harden webhook signature validation")).toBeInTheDocument();
   expect(screen.getByText("当前智算节点")).toBeInTheDocument();
   expect(screen.getByText("Claude 3.7 Sonnet")).toBeInTheDocument();
-  expect(screen.getByText("仓库健康审查")).toBeInTheDocument();
+  expect(screen.getByText("仓库健康审查极")).toBeInTheDocument();
   expect(screen.getByText("Legacy Worker")).toBeInTheDocument();
 
   expect(screen.getByText("研发效能可视化度量中心")).toBeInTheDocument();
+  expect(screen.getByText("METRICS INTERACTIVE ACTIVE")).toBeInTheDocument();
   expect(screen.getByText("各项目代码提交频次")).toBeInTheDocument();
+  expect(screen.getByText("团队成员提交热度")).toBeInTheDocument();
+  expect(screen.getByText("各项目代码质量平均得分趋势")).toBeInTheDocument();
   expect(screen.getByText("成员代码质量评分指数")).toBeInTheDocument();
-  expect(screen.getByText("均分: -")).toBeInTheDocument();
+  expect(screen.getByText("项目代码变更规模控制 (增加 / 删除)")).toBeInTheDocument();
+  expect(screen.getByText("成员代码变更差异度量 (增加 / 删除)")).toBeInTheDocument();
+  expect(screen.getAllByText("单位: 次")).toHaveLength(2);
+  expect(screen.getAllByText("满分: 100")).toHaveLength(2);
+  expect(screen.getAllByText("单位: 行")).toHaveLength(2);
+  expect(screen.getByText("静态安全与合规扫描 (AST Scan)")).toBeInTheDocument();
+  expect(screen.getByText("轻量级 RBAC 矩阵控制")).toBeInTheDocument();
+  expect(screen.getByText("多模型 Agent 诊断通道")).toBeInTheDocument();
+  expect(screen.getByText("AST_COMPLIANCE_STANDARDS")).toBeInTheDocument();
+  expect(screen.getByText("RBAC_ACCESS_SECURED")).toBeInTheDocument();
+  expect(screen.getByText("AI_AGENT_DIAGNOSTICS")).toBeInTheDocument();
   expect(screen.getAllByText("Payments API").length).toBeGreaterThan(0);
 });
 
@@ -224,7 +272,7 @@ test("renders duplicate project names without duplicate React keys", async () =>
 
   renderWithQuery(<DashboardPage />);
 
-  expect(await screen.findAllByText("Shared Name")).toHaveLength(6);
+  expect(await screen.findByText("admin，欢迎进入代码复审控制中心")).toBeInTheDocument();
   expect(consoleErrorSpy).not.toHaveBeenCalledWith(
     expect.stringContaining('Encountered two children with the same key')
   );

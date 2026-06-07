@@ -84,6 +84,13 @@ ADMIN_CONSOLE_PERMISSION_SEEDS = [
         "description": "允许启用或停用项目模板。",
     },
     {
+        "name": "删除项目模板",
+        "code": "project_template:delete",
+        "resource": "project_template",
+        "action": "delete",
+        "description": "允许删除自定义项目模板。",
+    },
+    {
         "name": "查看模型配置",
         "code": "llm_model:read",
         "resource": "llm_model",
