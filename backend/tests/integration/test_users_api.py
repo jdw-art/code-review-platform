@@ -143,13 +143,19 @@ def test_admin_can_create_user(authenticated_superuser_client, db_session):
 
 
 def test_admin_can_list_users(authenticated_superuser_client, managed_user):
-    response = authenticated_superuser_client.get("/api/v1/users")
+    response = authenticated_superuser_client.get(
+        "/api/v1/users",
+        params={"page": 1, "page_size": 1},
+    )
 
     assert response.status_code == 200
     body = response.json()
-    assert any(user["id"] == managed_user.id for user in body)
-    assert any(user["username"] == "admin" for user in body)
-    assert all(isinstance(user["id"], int) for user in body)
+    assert body["page"] == 1
+    assert body["page_size"] == 1
+    assert body["total"] >= 2
+    assert body["total_pages"] >= 2
+    assert len(body["items"]) == 1
+    assert all(isinstance(user["id"], int) for user in body["items"])
 
 
 def test_admin_can_get_user_detail(authenticated_superuser_client, managed_user):

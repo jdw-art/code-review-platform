@@ -6,6 +6,7 @@ from typing import Any
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
+from app.core.env_compat import load_backend_env_compat
 from app.db.models import ReviewRecord
 from app.integrations.base import BaseIntegrationAdapter, NormalizedWebhookEvent
 
@@ -20,6 +21,7 @@ class GitHubIntegrationAdapter(BaseIntegrationAdapter):
         base_url: str | None = None,
         api_base_url: str | None = None,
     ) -> None:
+        load_backend_env_compat()
         self.access_token = access_token or os.getenv("GITHUB_ACCESS_TOKEN")
         self.base_url = base_url or os.getenv("GITHUB_URL")
         self.api_base_url = api_base_url or os.getenv("GITHUB_API_URL")

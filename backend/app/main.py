@@ -8,12 +8,14 @@ from fastapi.responses import JSONResponse
 
 from app.api.router import api_router
 from app.core.config import BACKEND_DIR, Settings
+from app.core.env_compat import load_backend_env_compat
 from app.core.logging import configure_logging
 from app.schemas.common import DomainError, ErrorResponse
 from app.services.bootstrap import run_bootstrap
 from app.workers.dev_worker_supervisor import DevWorkerSupervisor
 
 
+load_backend_env_compat()
 settings = Settings()
 
 

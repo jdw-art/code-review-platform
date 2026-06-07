@@ -121,3 +121,26 @@ async def update_notification_bot_status(
         response_status=status.HTTP_200_OK,
     )
     return await service.update_status(current_user, bot_id, payload, audit_context)
+
+
+@router.post(
+    "/{bot_id}/test",
+    response_model=NotificationBotResponse,
+    summary="测试通知机器人",
+    description="向指定通知机器人发送真实诊断消息，并回写最近测试结果。需要 `notification_bot:update` 权限。",
+)
+async def test_notification_bot(
+    request: Request,
+    bot_id: int,
+    current_user: User = Depends(require_permission("notification_bot:update")),
+    service: NotificationBotService = Depends(),
+) -> NotificationBotResponse:
+    """测试指定通知机器人并回写最近测试状态。"""
+    audit_context = AuditLogService.build_context(
+        request=request,
+        current_user=current_user,
+        action="notification_bot.test",
+        resource_type="notification_bot",
+        response_status=status.HTTP_200_OK,
+    )
+    return await service.test_bot(current_user, bot_id, audit_context)

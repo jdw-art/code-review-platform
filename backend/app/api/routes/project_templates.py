@@ -108,3 +108,18 @@ async def update_project_template_status(
 ) -> ProjectTemplateResponse:
     """修改指定项目模板的启停状态。"""
     return await service.update_status(current_user, template_id, payload)
+
+
+@router.delete(
+    "/{template_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="删除项目模板",
+    description="删除指定项目模板。系统模板或仍被项目引用的模板不允许删除。需要 `project_template:delete` 权限。",
+)
+async def delete_project_template(
+    template_id: int,
+    current_user: User = Depends(require_permission("project_template:delete")),
+    service: ProjectTemplateService = Depends(),
+) -> None:
+    """删除指定项目模板。"""
+    await service.delete_template(current_user, template_id)

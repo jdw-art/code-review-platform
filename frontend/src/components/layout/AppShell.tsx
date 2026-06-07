@@ -1,14 +1,13 @@
 import { Outlet } from "react-router-dom";
 
 import { useAuth } from "../../lib/auth/auth-context";
-import { SidebarNav } from "./SidebarNav";
-import { Topbar } from "./Topbar";
+import { ConsoleShell } from "../console/ConsoleShell";
 
 /**
  * AppShell 承载后台统一布局，把菜单、顶部信息和页面内容区拼成一个可复用框架。
  */
 export function AppShell() {
-  const { menuTree, mustChangePassword, logout, status, user } = useAuth();
+  const { menuTree, logout, mustChangePassword, roles, status, user } = useAuth();
 
   if (status === "loading") {
     return (
@@ -20,20 +19,18 @@ export function AppShell() {
     );
   }
 
+  const roleLabel = roles[0]?.name ?? (user?.is_superuser ? "超级管理员" : "未分配角色");
+
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 lg:flex">
-      <SidebarNav menus={menuTree} />
-      <div className="flex-1 px-6 py-6 lg:px-10">
-        <Topbar
-          username={user?.username ?? "unknown"}
-          nickname={user?.nickname ?? null}
-          mustChangePassword={mustChangePassword}
-          onLogout={logout}
-        />
-        <main className="mt-6">
-          <Outlet />
-        </main>
-      </div>
-    </div>
+    <ConsoleShell
+      menus={menuTree}
+      username={user?.username ?? "unknown"}
+      nickname={user?.nickname ?? null}
+      roleLabel={roleLabel}
+      mustChangePassword={mustChangePassword}
+      onLogout={logout}
+    >
+      <Outlet />
+    </ConsoleShell>
   );
 }

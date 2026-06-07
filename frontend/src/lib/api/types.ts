@@ -115,6 +115,14 @@ export interface ProjectTemplateOptionsResponse {
   prompt_metadata_presets: Record<string, string[]>;
 }
 
+export interface ProjectSettingsResponse {
+  language?: string | null;
+  owner?: string | null;
+  average_score?: number | null;
+  last_review_at?: string | null;
+  [key: string]: unknown;
+}
+
 export interface ProjectResponse {
   id: number;
   name: string;
@@ -125,11 +133,65 @@ export interface ProjectResponse {
   description: string | null;
   is_active: boolean;
   review_enabled: boolean;
+  language: string | null;
+  owner: string | null;
+  score_average: number | null;
+  last_review_at: string | null;
   template: ProjectTemplateSummary | null;
-  settings: Record<string, unknown>;
+  settings?: ProjectSettingsResponse | null;
   created_by: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProjectManualReviewResponse {
+  review_record_id: number;
+  status: string;
+  branch: string;
+  last_commit_id: string;
+}
+
+export interface AgentSessionResponse {
+  id: number;
+  project_id: number;
+  title: string;
+  status: string;
+  branch: string;
+  provider: string | null;
+  model: string | null;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  last_message_at: string | null;
+}
+
+export interface AgentMessageResponse {
+  id: number;
+  session_id: number;
+  run_id: number | null;
+  role: string;
+  content: string;
+  status: string;
+  sequence: number;
+  content_format: string;
+  created_at: string;
+}
+
+export interface AgentSSEEventPayload {
+  id?: number;
+  run_id?: number;
+  session_id: number;
+  sequence?: number;
+  role?: string;
+  content?: string;
+  status?: string;
+  created_at?: string;
+  payload?: Record<string, unknown>;
+}
+
+export interface AgentSSEEvent {
+  event: string;
+  data: AgentSSEEventPayload;
 }
 
 export interface ProjectTemplateResponse {
@@ -137,7 +199,7 @@ export interface ProjectTemplateResponse {
   name: string;
   code: string;
   description: string | null;
-  file_extensions: string[];
+  file_extensions?: string[] | null;
   review_prompt_template: string | null;
   review_prompt_configured: boolean;
   prompt_metadata: Record<string, unknown>;
@@ -161,6 +223,7 @@ export interface LlmModelResponse {
   prompt_template: string | null;
   is_default: boolean;
   is_active: boolean;
+  queries_count?: number | null;
   last_test_status: string | null;
   last_test_message: string | null;
   last_test_at: string | null;
@@ -208,6 +271,52 @@ export interface DashboardOverviewResponse {
   active_projects: number;
   total_review_records: number;
   average_score: number | null;
+  active_model_name: string | null;
+  recent_reviews?: DashboardRecentReviewItem[] | null;
+  project_chart?: DashboardChartPoint[] | null;
+  member_chart?: DashboardChartPoint[] | null;
+  models?: DashboardModelSummary[] | null;
+  repo_health?: DashboardRepoHealthItem[] | null;
+}
+
+export interface DashboardChartPoint {
+  project_id: number | null;
+  name: string;
+  commits: number;
+  avg_score: number | null;
+  additions: number;
+  deletions: number;
+}
+
+export interface DashboardRecentReviewItem {
+  id: number;
+  project_name: string;
+  title: string | null;
+  branch: string | null;
+  commit_hash: string | null;
+  committer: string | null;
+  score: number | null;
+  review_status: string;
+  summary: string | null;
+  created_at: string;
+}
+
+export interface DashboardModelSummary {
+  id: number;
+  name: string;
+  provider: string;
+  temperature: number | null;
+  is_default: boolean;
+  is_active: boolean;
+}
+
+export interface DashboardRepoHealthItem {
+  project_id: number;
+  name: string;
+  is_active: boolean;
+  review_count: number;
+  average_score: number | null;
+  last_review_at: string | null;
 }
 
 export interface ReviewRecordAuthorOption {
@@ -246,7 +355,7 @@ export interface ReviewRecordListItemResponse {
   source_branch: string | null;
   target_branch: string | null;
   commit_count: number;
-  commit_messages: string[];
+  commit_messages?: string[] | null;
   score: number | null;
   review_status: string;
   review_result: string | null;
@@ -262,7 +371,7 @@ export interface ReviewRecordListItemResponse {
 
 export interface ReviewRecordDetailResponse extends ReviewRecordListItemResponse {
   review_prompt_snapshot: string | null;
-  commits: ReviewCommitResponse[];
+  commits?: ReviewCommitResponse[] | null;
 }
 
 export interface MemberAnalyticsRecentReviewResponse {
@@ -291,7 +400,7 @@ export interface MemberAnalyticsListItemResponse {
 
 export interface MemberAnalyticsDetailResponse
   extends MemberAnalyticsListItemResponse {
-  recent_reviews: MemberAnalyticsRecentReviewResponse[];
+  recent_reviews?: MemberAnalyticsRecentReviewResponse[] | null;
 }
 
 export interface PermissionResponse {
@@ -310,8 +419,8 @@ export interface RoleResponse {
   code: string;
   description: string | null;
   is_system: boolean;
-  permissions: PermissionResponse[];
-  menus: MenuNode[];
+  permissions?: PermissionResponse[] | null;
+  menus?: MenuNode[] | null;
 }
 
 export interface UserRoleSummary {
@@ -329,5 +438,5 @@ export interface UserResponse {
   is_active: boolean;
   is_superuser: boolean;
   must_change_password: boolean;
-  roles: UserRoleSummary[];
+  roles?: UserRoleSummary[] | null;
 }

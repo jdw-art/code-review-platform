@@ -1,13 +1,12 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { vi } from "vitest";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { afterEach, vi } from "vitest";
 
 import { AuthProvider } from "../../lib/auth/auth-context";
 import { http } from "../../lib/api/http";
 import { tokenStore } from "../../lib/auth/token-store";
 import { createQueryClient } from "../../lib/query/query-client";
-import { DashboardPage } from "../dashboard/DashboardPage";
 import { LoginPage } from "./LoginPage";
 
 const { mockHttpGet, mockHttpPost, mockTokenStore } = vi.hoisted(() => ({
@@ -31,23 +30,42 @@ vi.mock("../../lib/auth/token-store", () => ({
   tokenStore: mockTokenStore,
 }));
 
-function renderLoginPage() {
+afterEach(() => {
+  vi.clearAllMocks();
+});
+
+function renderLoginPage(
+  initialEntries: Array<string | { pathname: string; state?: unknown }> = ["/login"]
+) {
   const queryClient = createQueryClient();
 
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter
-        initialEntries={["/login"]}
+        initialEntries={initialEntries}
         future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
       >
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/dashboard" element={<div>仪表盘首页</div>} />
+            <Route path="/projects/:projectId/agent" element={<div>项目智能体页</div>} />
+            <Route
+              path="/review-records/:reviewRecordId"
+              element={<ReturnedLocationPage />}
+            />
           </Routes>
         </AuthProvider>
       </MemoryRouter>
     </QueryClientProvider>
+  );
+}
+
+function ReturnedLocationPage() {
+  const location = useLocation();
+
+  return (
+    <div>{`${location.pathname}${location.search}${location.hash}`}</div>
   );
 }
 
@@ -81,18 +99,30 @@ test("提交登录表单后保存令牌", async () => {
 
   renderLoginPage();
 
+  expect(screen.getByText("AI Code Review Console")).toBeInTheDocument();
+  expect(screen.getByText("Platform Auth Node")).toBeInTheDocument();
+  expect(screen.getByText("预设工作账号:")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "超级管理员" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "开发工程师" })).toBeInTheDocument();
+  expect(screen.getByText("30 天内保持登录状态")).toBeInTheDocument();
+  expect(screen.getByText("CONSOLE SYSTEM v2.0")).toBeInTheDocument();
+  expect(screen.getByText("SECURED TRANSIT")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "进入控制台" })).toBeInTheDocument();
+  expect(screen.getByLabelText("用户名")).toHaveValue("admin");
+  expect(screen.getByLabelText("密码")).toHaveValue("admin2026");
+
   fireEvent.change(screen.getByLabelText("用户名"), {
     target: { value: "admin" },
   });
   fireEvent.change(screen.getByLabelText("密码"), {
-    target: { value: "jdw112233" },
+    target: { value: "admin2026" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "登录" }));
+  fireEvent.click(screen.getByRole("button", { name: "进入控制台" }));
 
   await waitFor(() => {
     expect(http.post).toHaveBeenCalledWith("/auth/login", {
       username: "admin",
-      password: "jdw112233",
+      password: "admin2026",
     });
     expect(tokenStore.save).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -133,11 +163,119 @@ test("首次登录需要改密时展示改密表单", async () => {
     target: { value: "admin" },
   });
   fireEvent.change(screen.getByLabelText("密码"), {
-    target: { value: "jdw112233" },
+    target: { value: "admin2026" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "登录" }));
+  fireEvent.click(screen.getByRole("button", { name: "进入控制台" }));
 
   expect(await screen.findByText("首次登录需要先修改密码")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "修改密码" })).toBeInTheDocument();
   expect(http.get).toHaveBeenCalledWith("/me/profile");
+});
+
+test("登录成功后返回受保护的深链接路由", async () => {
+  mockHttpPost.mockResolvedValueOnce({
+    data: {
+      access_token: "access-token",
+      refresh_token: "refresh-token",
+      token_type: "bearer",
+      expires_in: 900,
+      must_change_password: false,
+    },
+  });
+  mockHttpGet.mockResolvedValueOnce({
+    data: {
+      user: {
+        id: 1,
+        username: "admin",
+        nickname: "管理员",
+        email: "admin@example.com",
+        phone: null,
+        is_active: true,
+        is_superuser: true,
+      },
+      roles: [],
+      permissions: [],
+      menus: [],
+      must_change_password: false,
+    },
+  });
+
+  renderLoginPage([
+    {
+      pathname: "/login",
+      state: { from: "/projects/42/agent" },
+    },
+  ]);
+
+  fireEvent.change(screen.getByLabelText("用户名"), {
+    target: { value: "admin" },
+  });
+  fireEvent.change(screen.getByLabelText("密码"), {
+    target: { value: "admin2026" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "进入控制台" }));
+
+  expect(await screen.findByText("项目智能体页")).toBeInTheDocument();
+});
+
+test("登录成功后返回完整的深链接字符串", async () => {
+  mockHttpPost.mockResolvedValueOnce({
+    data: {
+      access_token: "access-token",
+      refresh_token: "refresh-token",
+      token_type: "bearer",
+      expires_in: 900,
+      must_change_password: false,
+    },
+  });
+  mockHttpGet.mockResolvedValueOnce({
+    data: {
+      user: {
+        id: 1,
+        username: "admin",
+        nickname: "管理员",
+        email: "admin@example.com",
+        phone: null,
+        is_active: true,
+        is_superuser: true,
+      },
+      roles: [],
+      permissions: [],
+      menus: [],
+      must_change_password: false,
+    },
+  });
+
+  renderLoginPage([
+    {
+      pathname: "/login",
+      state: { from: "/review-records/42?tab=diff#comments" },
+    },
+  ]);
+
+  fireEvent.change(screen.getByLabelText("用户名"), {
+    target: { value: "admin" },
+  });
+  fireEvent.change(screen.getByLabelText("密码"), {
+    target: { value: "admin2026" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "进入控制台" }));
+
+  expect(
+    await screen.findByText("/review-records/42?tab=diff#comments")
+  ).toBeInTheDocument();
+});
+
+test("切换预设工作账号时同步更新用户名和密码", () => {
+  renderLoginPage();
+
+  fireEvent.click(screen.getByRole("button", { name: "开发工程师" }));
+
+  expect(screen.getByLabelText("用户名")).toHaveValue("developer");
+  expect(screen.getByLabelText("密码")).toHaveValue("dev2026");
+
+  fireEvent.click(screen.getByRole("button", { name: "超级管理员" }));
+
+  expect(screen.getByLabelText("用户名")).toHaveValue("admin");
+  expect(screen.getByLabelText("密码")).toHaveValue("admin2026");
 });

@@ -1,4 +1,10 @@
-import { createBrowserRouter, Navigate, Outlet, useLocation } from "react-router-dom";
+import {
+  createBrowserRouter,
+  Navigate,
+  Outlet,
+  useLocation,
+  type RouteObject,
+} from "react-router-dom";
 
 import { AppShell } from "../components/layout/AppShell";
 import { useAuth } from "../lib/auth/auth-context";
@@ -7,6 +13,7 @@ import { BotListPage } from "../pages/bots/BotListPage";
 import { DashboardPage } from "../pages/dashboard/DashboardPage";
 import { ModelListPage } from "../pages/models/ModelListPage";
 import { MemberAnalyticsPage } from "../pages/analytics/MemberAnalyticsPage";
+import { ProjectAgentPage } from "../pages/projects/ProjectAgentPage";
 import { ProjectListPage } from "../pages/projects/ProjectListPage";
 import { ProjectTemplateListPage } from "../pages/projects/ProjectTemplateListPage";
 import { ReviewRecordDetailPage } from "../pages/reviews/ReviewRecordDetailPage";
@@ -35,6 +42,14 @@ function RootRedirect() {
   return <Navigate replace to={status === "authenticated" ? "/dashboard" : "/login"} />;
 }
 
+export function buildReturnToLocation(location: {
+  pathname: string;
+  search: string;
+  hash: string;
+}) {
+  return `${location.pathname}${location.search}${location.hash}`;
+}
+
 function ProtectedLayout() {
   const location = useLocation();
   const { status } = useAuth();
@@ -48,7 +63,7 @@ function ProtectedLayout() {
       <Navigate
         replace
         to="/login"
-        state={{ from: location.pathname }}
+        state={{ from: buildReturnToLocation(location) }}
       />
     );
   }
@@ -73,7 +88,7 @@ function PlaceholderPage() {
 /**
  * 路由树当前先保证认证、壳子和仪表盘进入路径正确，后续任务再逐页替换占位路由。
  */
-export const router = createBrowserRouter([
+export const routeConfig: RouteObject[] = [
   {
     path: "/",
     element: <RootRedirect />,
@@ -93,6 +108,10 @@ export const router = createBrowserRouter([
       {
         path: "/projects",
         element: <ProjectListPage />,
+      },
+      {
+        path: "/projects/:projectId/agent",
+        element: <ProjectAgentPage />,
       },
       {
         path: "/project-templates",
@@ -127,6 +146,10 @@ export const router = createBrowserRouter([
         element: <Navigate replace to="/system/users" />,
       },
       {
+        path: "/system/audit-logs",
+        element: <Navigate replace to="/audit-logs" />,
+      },
+      {
         path: "/system/users",
         element: <UserListPage />,
       },
@@ -140,4 +163,6 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+];
+
+export const router = createBrowserRouter(routeConfig);

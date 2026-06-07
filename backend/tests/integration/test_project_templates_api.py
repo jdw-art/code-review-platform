@@ -201,6 +201,101 @@ def test_project_templates_api_rejects_disabling_template_in_use(
     assert body["code"] == "PROJECT_TEMPLATE_IN_USE"
 
 
+def test_project_templates_api_deletes_template_when_unreferenced(
+    authenticated_superuser_client,
+    db_session,
+) -> None:
+    template = ProjectTemplate(
+        name="Disposable Template",
+        code="disposable-template",
+        file_extensions=[".py"],
+        prompt_metadata={},
+        is_system=False,
+        is_active=True,
+    )
+    db_session.add(template)
+    db_session.commit()
+
+    response = authenticated_superuser_client.delete(
+        f"/api/v1/project-templates/{template.id}"
+    )
+
+    assert response.status_code == 204
+    assert response.content == b""
+    assert db_session.scalar(
+        select(ProjectTemplate).where(ProjectTemplate.id == template.id)
+    ) is None
+
+
+def test_project_templates_api_rejects_deleting_template_in_use(
+    authenticated_superuser_client,
+    db_session,
+) -> None:
+    template = ProjectTemplate(
+        name="In Use Template",
+        code="in-use-template",
+        file_extensions=[".py"],
+        prompt_metadata={},
+        is_system=False,
+        is_active=True,
+    )
+    project = Project(
+        name="Template Consumer",
+        key="template-consumer",
+        platform_type="gitlab",
+        default_branch="main",
+        template=template,
+        is_active=False,
+        review_enabled=True,
+        settings={},
+    )
+    db_session.add_all([template, project])
+    db_session.commit()
+
+    response = authenticated_superuser_client.delete(
+        f"/api/v1/project-templates/{template.id}"
+    )
+
+    assert response.status_code == 409
+    body = response.json()
+    assert body["code"] == "PROJECT_TEMPLATE_IN_USE"
+    assert body["message"] == "当前模板已被项目使用，解除绑定后才能删除。"
+
+
+def test_project_templates_api_rejects_deleting_system_template(
+    authenticated_superuser_client,
+    db_session,
+) -> None:
+    template = ProjectTemplate(
+        name="System Protected Template",
+        code="system-protected-template",
+        file_extensions=[".py"],
+        prompt_metadata={},
+        is_system=True,
+        is_active=True,
+    )
+    db_session.add(template)
+    db_session.commit()
+
+    response = authenticated_superuser_client.delete(
+        f"/api/v1/project-templates/{template.id}"
+    )
+
+    assert response.status_code == 409
+    body = response.json()
+    assert body["code"] == "PROJECT_TEMPLATE_SYSTEM_TEMPLATE"
+    assert body["message"] == "系统内置模板不允许删除。"
+
+
+def test_project_templates_api_returns_404_when_deleting_missing_template(
+    authenticated_superuser_client,
+) -> None:
+    response = authenticated_superuser_client.delete("/api/v1/project-templates/999999")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "项目模板不存在。"
+
+
 def test_project_templates_api_bootstrap_seeds_permissions_menus_and_templates(
     client,
     authenticated_superuser_client,
@@ -231,6 +326,7 @@ def test_project_templates_api_bootstrap_seeds_permissions_menus_and_templates(
         "project_template:create",
         "project_template:update",
         "project_template:status",
+        "project_template:delete",
         "user:read",
         "user:create",
         "user:update",
@@ -282,6 +378,7 @@ def test_project_templates_api_exposes_chinese_openapi(
         ("get", "/api/v1/project-templates/999999", None),
         ("put", "/api/v1/project-templates/999999", {"name": "No Access", "code": "no-access", "file_extensions": [".py"], "prompt_metadata": {}}),
         ("patch", "/api/v1/project-templates/999999/status", {"is_active": False}),
+        ("delete", "/api/v1/project-templates/999999", None),
     ],
 )
 def test_project_template_endpoints_require_permissions(

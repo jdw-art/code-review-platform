@@ -87,34 +87,38 @@ export function ReviewRecordDetailPage() {
         {isLoading ? (
           <p className="text-sm text-slate-600">正在加载审查详情...</p>
         ) : data ? (
-          <div className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <DetailField label="项目名称" value={data.project_name_snapshot} />
-              <DetailField label="事件类型" value={formatEventType(data.event_type)} />
-              <DetailField label="作者" value={data.author} />
-              <DetailField label="审查状态" value={<StatusBadge value={data.review_status} />} />
-              <DetailField label="评分" value={formatScore(data.score)} />
-              <DetailField label="源分支" value={data.source_branch ?? data.branch ?? "-"} />
-              <DetailField label="目标分支" value={data.target_branch ?? "-"} />
-              <DetailField label="更新时间" value={formatDateTime(data.updated_at)} />
-            </div>
-            <div className="grid gap-4 xl:grid-cols-2">
-              <DetailField label="审查摘要" value={data.summary ?? data.review_result ?? "-"} />
-              <DetailField
-                label="提示词快照"
-                value={data.review_prompt_snapshot ?? "未记录提示词快照"}
-              />
-            </div>
-            <section className="rounded-[1.5rem] border border-slate-200">
-              <header className="border-b border-slate-200 px-5 py-4">
-                <h2 className="text-lg font-semibold text-slate-900">Commit 明细</h2>
-                <p className="mt-1 text-sm text-slate-600">
-                  当前审查事件共包含 {data.commits.length} 条 commit 记录。
-                </p>
-              </header>
-              <div className="divide-y divide-slate-100">
-                {data.commits.length > 0 ? (
-                  data.commits.map((commit) => (
+          (() => {
+            const commits = data.commits ?? [];
+
+            return (
+              <div className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <DetailField label="项目名称" value={data.project_name_snapshot} />
+                  <DetailField label="事件类型" value={formatEventType(data.event_type)} />
+                  <DetailField label="作者" value={data.author} />
+                  <DetailField label="审查状态" value={<StatusBadge value={data.review_status} />} />
+                  <DetailField label="评分" value={formatScore(data.score)} />
+                  <DetailField label="源分支" value={data.source_branch ?? data.branch ?? "-"} />
+                  <DetailField label="目标分支" value={data.target_branch ?? "-"} />
+                  <DetailField label="更新时间" value={formatDateTime(data.updated_at)} />
+                </div>
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <DetailField label="审查摘要" value={data.summary ?? data.review_result ?? "-"} />
+                  <DetailField
+                    label="提示词快照"
+                    value={data.review_prompt_snapshot ?? "未记录提示词快照"}
+                  />
+                </div>
+                <section className="rounded-[1.5rem] border border-slate-200">
+                  <header className="border-b border-slate-200 px-5 py-4">
+                    <h2 className="text-lg font-semibold text-slate-900">Commit 明细</h2>
+                    <p className="mt-1 text-sm text-slate-600">
+                      当前审查事件共包含 {commits.length} 条 commit 记录。
+                    </p>
+                  </header>
+                  <div className="divide-y divide-slate-100">
+                    {commits.length > 0 ? (
+                      commits.map((commit) => (
                     <article key={commit.id} className="px-5 py-4">
                       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                         <p className="font-medium text-slate-900">
@@ -128,13 +132,15 @@ export function ReviewRecordDetailPage() {
                         作者：{commit.author ?? "-"} | 时间：{formatDateTime(commit.timestamp)}
                       </p>
                     </article>
-                  ))
-                ) : (
-                  <p className="px-5 py-6 text-sm text-slate-500">暂无 commit 明细</p>
-                )}
+                      ))
+                    ) : (
+                      <p className="px-5 py-6 text-sm text-slate-500">暂无 commit 明细</p>
+                    )}
+                  </div>
+                </section>
               </div>
-            </section>
-          </div>
+            );
+          })()
         ) : (
           <p className="text-sm text-slate-600">未获取到审查详情。</p>
         )}

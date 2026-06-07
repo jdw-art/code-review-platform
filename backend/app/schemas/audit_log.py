@@ -34,6 +34,9 @@ class AuditActionContext:
         resource_name: str | None = None,
         resource_name_snapshot: str | None = None,
         response_status: int | None = None,
+        request_payload: dict[str, Any] | None = None,
+        result: str | None = None,
+        error_message: str | None = None,
     ) -> "AuditActionContext":
         """在保留请求元数据的前提下补齐资源信息。"""
         next_resource_name = resource_name if resource_name is not None else resource_name_snapshot
@@ -42,6 +45,9 @@ class AuditActionContext:
             resource_id=resource_id if resource_id is not None else self.resource_id,
             resource_name=next_resource_name if next_resource_name is not None else self.resource_name,
             response_status=response_status if response_status is not None else self.response_status,
+            request_payload=request_payload if request_payload is not None else self.request_payload,
+            result=result if result is not None else self.result,
+            error_message=error_message if error_message is not None else self.error_message,
         )
 
 
@@ -80,3 +86,9 @@ class AuditLogQuery(BaseModel):
     def offset(self) -> int:
         """返回 SQL 查询所需的偏移量。"""
         return (self.page - 1) * self.page_size
+
+
+class AuditLogPurgeResponse(BaseModel):
+    """审计日志清理响应。"""
+
+    purged_count: int

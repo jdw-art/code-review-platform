@@ -42,6 +42,20 @@ ADMIN_CONSOLE_PERMISSION_SEEDS = [
         "description": "允许启用或停用项目。",
     },
     {
+        "name": "删除项目",
+        "code": "project:delete",
+        "resource": "project",
+        "action": "delete",
+        "description": "允许删除后台管理项目。",
+    },
+    {
+        "name": "触发项目审查",
+        "code": "project:trigger-review",
+        "resource": "project",
+        "action": "trigger-review",
+        "description": "允许手动触发项目默认分支审查并创建真实队列任务。",
+    },
+    {
         "name": "查看项目模板",
         "code": "project_template:read",
         "resource": "project_template",
@@ -68,6 +82,13 @@ ADMIN_CONSOLE_PERMISSION_SEEDS = [
         "resource": "project_template",
         "action": "status",
         "description": "允许启用或停用项目模板。",
+    },
+    {
+        "name": "删除项目模板",
+        "code": "project_template:delete",
+        "resource": "project_template",
+        "action": "delete",
+        "description": "允许删除自定义项目模板。",
     },
     {
         "name": "查看模型配置",
@@ -159,6 +180,13 @@ ADMIN_CONSOLE_PERMISSION_SEEDS = [
         "resource": "audit_log",
         "action": "read",
         "description": "允许查看后台操作审计日志。",
+    },
+    {
+        "name": "清理审计日志",
+        "code": "audit_log:purge",
+        "resource": "audit_log",
+        "action": "purge",
+        "description": "允许清理业务审计日志，同时保留系统安全日志。",
     },
     {
         "name": "查看用户",

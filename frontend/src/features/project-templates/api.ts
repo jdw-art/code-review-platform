@@ -90,3 +90,10 @@ export async function updateProjectTemplateStatus(
   );
   return response.data;
 }
+
+/**
+ * 删除项目模板。
+ */
+export async function deleteProjectTemplate(templateId: number) {
+  await http.delete(`/project-templates/${templateId}`);
+}

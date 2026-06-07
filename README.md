@@ -26,6 +26,8 @@
 - IM notification delivery
 - daily report generation
 - 真实 `git push` 全链路验证脚本
+- `Repo Agent`：项目级仓库对话助手，保留 Pico 风格上下文、记忆、工具协议与 trace 落库设计
+- `Repo Agent Verification`：提供真实仓库、真实 LLM、最多 3 轮对话的端到端验收脚本
 
 ## 仓库导航
 

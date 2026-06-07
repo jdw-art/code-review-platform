@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.db.models import User
+from app.schemas.pagination import PageQuery, PageResponse
 from app.schemas.role import (
     RoleCreateRequest,
     RoleMenuAssignRequest,
@@ -20,14 +21,17 @@ router = APIRouter(prefix="/roles", tags=["roles"])
 
 @router.get(
     "",
-    response_model=list[RoleResponse],
+    response_model=PageResponse[RoleResponse],
     dependencies=[Depends(require_permission("role:read"))],
     summary="获取角色列表",
-    description="返回系统中的角色列表，以及每个角色关联的权限与菜单摘要。需要 `role:read` 权限。",
+    description="分页返回系统中的角色列表，以及每个角色关联的权限与菜单摘要。需要 `role:read` 权限。",
 )
-async def list_roles(service: RBACService = Depends()) -> list[RoleResponse]:
-    """查询角色列表。"""
-    return await service.list_roles()
+async def list_roles(
+    query: PageQuery = Depends(),
+    service: RBACService = Depends(),
+) -> PageResponse[RoleResponse]:
+    """查询角色分页列表。"""
+    return await service.list_roles(query)
 
 
 @router.get(

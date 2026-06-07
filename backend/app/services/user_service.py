@@ -4,12 +4,13 @@ import logging
 from datetime import UTC, datetime
 
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.models import RefreshSession, Role, User
 from app.db.session import get_db
 from app.schemas.common import DomainConflictError
+from app.schemas.pagination import PageQuery, PageResponse
 from app.schemas.user import (
     UserCreateRequest,
     UserResetPasswordRequest,
@@ -39,14 +40,22 @@ class UserService:
         self.refresh_store = refresh_store
         self.audit_log_service = audit_log_service
 
-    async def list_users(self) -> list[UserResponse]:
-        """返回用户列表及其角色摘要。"""
+    async def list_users(self, query: PageQuery) -> PageResponse[UserResponse]:
+        """返回用户分页列表及其角色摘要。"""
+        total = self.session.scalar(select(func.count(User.id))) or 0
         users = self.session.scalars(
             select(User)
             .options(selectinload(User.roles))
             .order_by(User.id.asc())
+            .offset(query.offset)
+            .limit(query.page_size)
         ).all()
-        return [self._to_user_response(user) for user in users]
+        return PageResponse.create(
+            items=[self._to_user_response(user) for user in users],
+            total=total,
+            page=query.page,
+            page_size=query.page_size,
+        )
 
     async def get_user(self, user_id: int) -> UserResponse:
         """按用户 ID 查询详情。"""

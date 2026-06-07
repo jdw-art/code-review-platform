@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, status
 
-from app.schemas.audit_log import AuditLogQuery, AuditLogResponse
+from app.db.models import User
+from app.schemas.audit_log import AuditLogPurgeResponse, AuditLogQuery, AuditLogResponse
 from app.schemas.pagination import PageResponse
 from app.security.deps import require_permission
 from app.services.audit_log_service import AuditLogService
@@ -39,3 +40,20 @@ async def get_audit_log(
 ) -> AuditLogResponse:
     """查询单条审计日志详情。"""
     return await service.get_log(log_id)
+
+
+@router.post(
+    "/purge",
+    response_model=AuditLogPurgeResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="清理业务审计日志",
+    description="清理业务审计日志并保留系统安全日志。需要 `audit_log:purge` 权限。",
+)
+async def purge_audit_logs(
+    request: Request,
+    current_user: User = Depends(require_permission("audit_log:purge")),
+    service: AuditLogService = Depends(),
+) -> AuditLogPurgeResponse:
+    """清理业务审计日志，并保留系统保底安全记录。"""
+    purged_count = await service.purge_business_logs(current_user, request)
+    return AuditLogPurgeResponse(purged_count=purged_count)

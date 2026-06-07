@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import logging
 
 from fastapi import Depends, HTTPException, status
@@ -18,8 +19,15 @@ from app.schemas.notification_bot import (
 from app.schemas.pagination import PageQuery, PageResponse
 from app.services.audit_log_service import AuditActionContext, AuditLogService
 from app.services.llm_model_service import get_secret_cipher, mask_secret
+from app.services.review_notification_service import ReviewNotificationSender, get_settings
 
 logger = logging.getLogger(__name__)
+
+
+def get_review_notification_sender(
+    cipher: SecretCipher = Depends(get_secret_cipher),
+) -> ReviewNotificationSender:
+    return ReviewNotificationSender(settings=get_settings(), cipher=cipher)
 
 
 class NotificationBotService:
@@ -30,10 +38,12 @@ class NotificationBotService:
         session: Session = Depends(get_db),
         cipher: SecretCipher = Depends(get_secret_cipher),
         audit_log_service: AuditLogService = Depends(),
+        notification_sender: ReviewNotificationSender = Depends(get_review_notification_sender),
     ) -> None:
         self.session = session
         self.cipher = cipher
         self.audit_log_service = audit_log_service
+        self.notification_sender = notification_sender
 
     async def list_bots(self, query: PageQuery) -> PageResponse[NotificationBotResponse]:
         """分页返回通知机器人列表。"""
@@ -148,6 +158,61 @@ class NotificationBotService:
             "Notification bot status updated bot_id=%s is_active=%s by user_id=%s.",
             bot.id,
             bot.is_active,
+            current_user.id,
+        )
+        return self._to_response(bot)
+
+    async def test_bot(
+        self,
+        current_user: User,
+        bot_id: int,
+        audit_context: AuditActionContext | None = None,
+    ) -> NotificationBotResponse:
+        """向指定机器人发送一条真实测试消息，并回写最近测试结果。"""
+        bot = self._get_bot_or_404(bot_id)
+        result = "success"
+        error_message: str | None = None
+
+        try:
+            self.notification_sender.send(
+                bot_type=bot.bot_type,
+                webhook_url=bot.webhook_url,
+                secret=self.notification_sender.resolve_bot_secret(bot),
+                title=f"{bot.name} 诊断测试",
+                content=(
+                    "### 通知机器人诊断测试\n\n"
+                    "这是一条由后台控制台发出的真实连通性检测消息，用于确认当前 Webhook 通道可用。"
+                ),
+                project_name=None,
+                url_slug=None,
+                webhook_data={},
+            )
+            bot.last_test_status = "success"
+            bot.last_test_message = "测试消息发送成功。"
+        except Exception as exc:
+            result = "failure"
+            error_message = str(exc) or "机器人测试失败。"
+            bot.last_test_status = "failed"
+            bot.last_test_message = error_message
+
+        bot.last_test_at = datetime.now(UTC)
+        if audit_context is not None:
+            self.audit_log_service.record_action(
+                actor=current_user,
+                context=audit_context.with_resource(
+                    resource_id=bot.id,
+                    resource_name_snapshot=bot.name,
+                    response_status=status.HTTP_200_OK,
+                    result=result,
+                    error_message=error_message,
+                ),
+            )
+        self.session.commit()
+        self.session.refresh(bot)
+        logger.info(
+            "Notification bot tested bot_id=%s status=%s by user_id=%s.",
+            bot.id,
+            bot.last_test_status,
             current_user.id,
         )
         return self._to_response(bot)

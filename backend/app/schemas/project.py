@@ -9,6 +9,7 @@ from app.schemas.project_template import (
     ProjectTemplateOptionResponse,
     ProjectTemplateSummary,
 )
+from app.schemas.pagination import PageQuery
 
 
 class PlatformOptionResponse(BaseModel):
@@ -30,6 +31,10 @@ class ProjectResponse(BaseModel):
     description: str | None = None
     is_active: bool
     review_enabled: bool
+    language: str | None = None
+    owner: str | None = None
+    score_average: float | None = None
+    last_review_at: datetime | None = None
     template: ProjectTemplateSummary | None = None
     settings: dict[str, Any] = Field(default_factory=dict)
     created_by: int | None = None
@@ -69,6 +74,15 @@ class ProjectUpdateRequest(BaseModel):
     settings: dict[str, Any] = Field(default_factory=dict)
 
 
+class ProjectListQuery(PageQuery):
+    """项目分页查询参数。"""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    search: str | None = Field(default=None, max_length=200)
+    language: str | None = Field(default=None, max_length=100)
+
+
 class ProjectStatusUpdateRequest(BaseModel):
     """项目启停状态更新请求体。"""
 
@@ -80,3 +94,12 @@ class ProjectOptionsResponse(BaseModel):
 
     platform_types: list[PlatformOptionResponse] = Field(default_factory=list)
     template_options: list[ProjectTemplateOptionResponse] = Field(default_factory=list)
+
+
+class ProjectManualReviewResponse(BaseModel):
+    """项目手动触发审查响应。"""
+
+    review_record_id: int
+    status: str
+    branch: str
+    last_commit_id: str

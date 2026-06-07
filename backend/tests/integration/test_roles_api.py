@@ -59,9 +59,18 @@ def test_admin_can_create_list_and_get_roles(authenticated_superuser_client):
     assert created_role["permissions"] == []
     assert created_role["menus"] == []
 
-    list_response = authenticated_superuser_client.get("/api/v1/roles")
+    list_response = authenticated_superuser_client.get(
+        "/api/v1/roles",
+        params={"page": 1, "page_size": 1},
+    )
     assert list_response.status_code == 200
-    assert any(role["id"] == created_role["id"] for role in list_response.json())
+    list_body = list_response.json()
+    assert list_body["page"] == 1
+    assert list_body["page_size"] == 1
+    assert list_body["total"] >= 1
+    assert list_body["total_pages"] >= 1
+    assert len(list_body["items"]) == 1
+    assert isinstance(list_body["items"][0]["id"], int)
 
     detail_response = authenticated_superuser_client.get(
         f"/api/v1/roles/{created_role['id']}"

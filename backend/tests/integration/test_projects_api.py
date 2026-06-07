@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy import select
 
-from app.db.models import Permission, Project, ProjectTemplate, Role, User
+from app.db.models import Permission, Project, ProjectTemplate, ReviewRecord, Role, User
+from app.main import app
 from app.security.passwords import hash_password
 from app.security.tokens import issue_access_token
+from app.services.review_queue_service import get_review_queue_service
 
 
 @pytest.fixture
@@ -78,6 +82,31 @@ def limited_projects_user_client(client, db_session):
     return client
 
 
+class FakeReviewQueueService:
+    def __init__(self) -> None:
+        self.messages: list[dict[str, object]] = []
+
+    async def enqueue(
+        self,
+        *,
+        review_record_id: int,
+        platform_type: str,
+        attempt: int = 1,
+    ) -> str:
+        self.messages.append(
+            {
+                "review_record_id": review_record_id,
+                "platform_type": platform_type,
+                "attempt": attempt,
+            }
+        )
+        return f"{review_record_id}:{platform_type}:{attempt}"
+
+    async def remove_message(self, raw_message: str) -> bool:
+        del raw_message
+        return True
+
+
 def test_projects_api_supports_crud_status_and_options(
     authenticated_superuser_client,
     active_template,
@@ -94,7 +123,12 @@ def test_projects_api_supports_crud_status_and_options(
             "description": "Project for admin console tests",
             "template_id": active_template.id,
             "review_enabled": True,
-            "settings": {"language": "java"},
+            "settings": {
+                "language": "java",
+                "owner": "backend-team",
+                "external_project_id": "1001",
+                "gitlab_project_path": "acme/demo-project",
+            },
         },
     )
 
@@ -103,6 +137,38 @@ def test_projects_api_supports_crud_status_and_options(
     assert isinstance(created["id"], int)
     assert created["template"]["id"] == active_template.id
     assert created["review_enabled"] is True
+    assert created["language"] == "java"
+    assert created["owner"] == "backend-team"
+
+    db_session.add_all(
+        [
+            ReviewRecord(
+                project_id=created["id"],
+                event_type="push",
+                platform_type="gitlab",
+                project_name_snapshot="Demo Project",
+                author="alice",
+                branch="main",
+                review_status="reviewed",
+                score=92,
+                created_at=datetime(2026, 6, 2, 9, 0, tzinfo=timezone.utc),
+                updated_at=datetime(2026, 6, 2, 9, 0, tzinfo=timezone.utc),
+            ),
+            ReviewRecord(
+                project_id=created["id"],
+                event_type="push",
+                platform_type="gitlab",
+                project_name_snapshot="Demo Project",
+                author="bob",
+                branch="main",
+                review_status="reviewed",
+                score=88,
+                created_at=datetime(2026, 6, 4, 10, 30, tzinfo=timezone.utc),
+                updated_at=datetime(2026, 6, 4, 10, 30, tzinfo=timezone.utc),
+            ),
+        ]
+    )
+    db_session.commit()
 
     list_response = authenticated_superuser_client.get(
         "/api/v1/projects",
@@ -111,13 +177,20 @@ def test_projects_api_supports_crud_status_and_options(
     assert list_response.status_code == 200
     list_body = list_response.json()
     assert list_body["total"] >= 1
-    assert any(item["id"] == created["id"] for item in list_body["items"])
+    listed = next(item for item in list_body["items"] if item["id"] == created["id"])
+    assert listed["language"] == "java"
+    assert listed["owner"] == "backend-team"
+    assert listed["score_average"] == 90.0
+    assert listed["last_review_at"] == "2026-06-04T10:30:00Z"
 
     detail_response = authenticated_superuser_client.get(
         f"/api/v1/projects/{created['id']}"
     )
     assert detail_response.status_code == 200
-    assert detail_response.json()["key"] == "demo-project"
+    detail = detail_response.json()
+    assert detail["key"] == "demo-project"
+    assert detail["score_average"] == 90.0
+    assert detail["last_review_at"] == "2026-06-04T10:30:00Z"
 
     update_response = authenticated_superuser_client.put(
         f"/api/v1/projects/{created['id']}",
@@ -130,7 +203,13 @@ def test_projects_api_supports_crud_status_and_options(
             "description": "Updated project",
             "template_id": active_template.id,
             "review_enabled": False,
-            "settings": {"language": "typescript"},
+            "settings": {
+                "language": "typescript",
+                "owner": "backend-team",
+                "external_project_id": "9001",
+                "external_repo_full_name": "acme/demo-project",
+                "protected_branches": ["main", "release"],
+            },
         },
     )
     assert update_response.status_code == 200
@@ -138,6 +217,7 @@ def test_projects_api_supports_crud_status_and_options(
     assert updated["name"] == "Demo Project Updated"
     assert updated["platform_type"] == "github"
     assert updated["review_enabled"] is False
+    assert updated["owner"] == "backend-team"
 
     status_response = authenticated_superuser_client.patch(
         f"/api/v1/projects/{created['id']}/status",
@@ -160,6 +240,231 @@ def test_projects_api_supports_crud_status_and_options(
     stored_project = db_session.scalar(select(Project).where(Project.id == created["id"]))
     assert stored_project is not None
     assert stored_project.is_active is False
+    assert stored_project.settings == {
+        "language": "typescript",
+        "owner": "backend-team",
+        "external_project_id": "9001",
+        "external_repo_full_name": "acme/demo-project",
+        "protected_branches": ["main", "release"],
+    }
+
+
+def test_projects_api_supports_server_side_search_and_language_filters(
+    authenticated_superuser_client,
+    db_session,
+) -> None:
+    db_session.add_all(
+        [
+            Project(
+                name="Alpha Service",
+                key="alpha-service",
+                platform_type="gitlab",
+                repo_url="https://example.com/alpha-service.git",
+                default_branch="main",
+                description="Primary Python service",
+                review_enabled=True,
+                settings={"language": "Python", "owner": "team-a"},
+            ),
+            Project(
+                name="Beta Console",
+                key="beta-console",
+                platform_type="github",
+                repo_url="https://example.com/beta-console.git",
+                default_branch="main",
+                description="TypeScript management console",
+                review_enabled=True,
+                settings={"language": "TypeScript", "owner": "team-b"},
+            ),
+            Project(
+                name="Gamma Worker",
+                key="gamma-worker",
+                platform_type="gitlab",
+                repo_url="https://example.com/gamma-worker.git",
+                default_branch="develop",
+                description="Async Python worker",
+                review_enabled=True,
+                settings={"language": "Python", "owner": "team-c"},
+            ),
+        ]
+    )
+    db_session.commit()
+
+    search_response = authenticated_superuser_client.get(
+        "/api/v1/projects",
+        params={"page": 1, "page_size": 20, "search": "console"},
+    )
+
+    assert search_response.status_code == 200
+    search_body = search_response.json()
+    assert search_body["total"] == 1
+    assert [item["name"] for item in search_body["items"]] == ["Beta Console"]
+
+    language_response = authenticated_superuser_client.get(
+        "/api/v1/projects",
+        params={"page": 1, "page_size": 20, "language": "python"},
+    )
+
+    assert language_response.status_code == 200
+    language_body = language_response.json()
+    assert language_body["total"] == 2
+    assert [item["name"] for item in language_body["items"]] == [
+        "Alpha Service",
+        "Gamma Worker",
+    ]
+
+    combined_response = authenticated_superuser_client.get(
+        "/api/v1/projects",
+        params={
+            "page": 1,
+            "page_size": 20,
+            "search": "worker",
+            "language": "Python",
+        },
+    )
+
+    assert combined_response.status_code == 200
+    combined_body = combined_response.json()
+    assert combined_body["total"] == 1
+    assert [item["name"] for item in combined_body["items"]] == ["Gamma Worker"]
+
+
+def test_projects_api_supports_delete_and_cascades_review_records(
+    authenticated_superuser_client,
+    db_session,
+) -> None:
+    project = Project(
+        name="Delete Project",
+        key="delete-project",
+        platform_type="gitlab",
+        repo_url="https://example.com/delete-project.git",
+        default_branch="main",
+        review_enabled=True,
+        settings={"external_project_id": "2002"},
+    )
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+
+    review_record = ReviewRecord(
+        project_id=project.id,
+        event_type="push",
+        platform_type="gitlab",
+        project_name_snapshot=project.name,
+        author="alice",
+        branch="main",
+        review_status="queued",
+    )
+    db_session.add(review_record)
+    db_session.commit()
+    db_session.refresh(review_record)
+
+    response = authenticated_superuser_client.delete(f"/api/v1/projects/{project.id}")
+
+    assert response.status_code == 204
+    assert db_session.scalar(select(Project).where(Project.id == project.id)) is None
+    assert (
+        db_session.scalar(select(ReviewRecord).where(ReviewRecord.id == review_record.id))
+        is None
+    )
+
+
+def test_projects_api_supports_manual_review_trigger(
+    authenticated_superuser_client,
+    db_session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services.project_review_service import ProjectReviewService
+
+    project = Project(
+        name="Manual Review Project",
+        key="manual-review-project",
+        platform_type="gitlab",
+        repo_url="https://gitlab.example.com/acme/manual-review-project",
+        default_branch="main",
+        review_enabled=False,
+        settings={
+            "language": "python",
+            "owner": "qa-team",
+            "external_project_id": "3003",
+            "gitlab_project_path": "acme/manual-review-project",
+        },
+    )
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+
+    queue_service = FakeReviewQueueService()
+    app.dependency_overrides[get_review_queue_service] = lambda: queue_service
+    monkeypatch.setattr(
+        ProjectReviewService,
+        "_resolve_default_branch_head",
+        lambda self, project: "sha-main-001",
+    )
+
+    try:
+        response = authenticated_superuser_client.post(
+            f"/api/v1/projects/{project.id}/manual-review"
+        )
+    finally:
+        app.dependency_overrides.pop(get_review_queue_service, None)
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["status"] == "queued"
+    assert body["branch"] == "main"
+    assert body["last_commit_id"] == "sha-main-001"
+    assert queue_service.messages == [
+        {
+            "review_record_id": body["review_record_id"],
+            "platform_type": "gitlab",
+            "attempt": 1,
+        }
+    ]
+
+    record = db_session.get(ReviewRecord, body["review_record_id"])
+    assert record is not None
+    assert record.project_id == project.id
+    assert record.event_type == "push"
+    assert record.review_status == "queued"
+    assert record.branch == "main"
+    assert record.last_commit_id == "sha-main-001"
+    assert record.external_commit_sha == "sha-main-001"
+    assert record.author == "root-admin"
+    assert record.webhook_data["after"] == "sha-main-001"
+    assert record.webhook_data["project"]["id"] == "3003"
+
+
+def test_projects_api_rejects_manual_review_for_inactive_project(
+    authenticated_superuser_client,
+    db_session,
+) -> None:
+    project = Project(
+        name="Inactive Review Project",
+        key="inactive-review-project",
+        platform_type="gitlab",
+        repo_url="https://gitlab.example.com/acme/inactive-review-project",
+        default_branch="main",
+        is_active=False,
+        review_enabled=True,
+        settings={
+            "language": "python",
+            "owner": "qa-team",
+            "external_project_id": "3100",
+            "gitlab_project_path": "acme/inactive-review-project",
+        },
+    )
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+
+    response = authenticated_superuser_client.post(
+        f"/api/v1/projects/{project.id}/manual-review"
+    )
+
+    assert response.status_code == 409
+    body = response.json()
+    assert body["code"] == "PROJECT_INACTIVE"
+    assert body["message"] == "停用项目不能触发手动审查。"
 
 
 def test_projects_api_rejects_inactive_template_binding(
@@ -203,6 +508,8 @@ def test_projects_api_exposes_chinese_openapi(client, authenticated_superuser_cl
         ("get", "/api/v1/projects/999999", None),
         ("put", "/api/v1/projects/999999", {"name": "No Access", "key": "no-access", "platform_type": "gitlab", "default_branch": "main", "review_enabled": True, "settings": {}}),
         ("patch", "/api/v1/projects/999999/status", {"is_active": False}),
+        ("delete", "/api/v1/projects/999999", None),
+        ("post", "/api/v1/projects/999999/manual-review", None),
     ],
 )
 def test_project_management_endpoints_require_permissions(

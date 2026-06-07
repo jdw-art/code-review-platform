@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import Depends, HTTPException, Request, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import AuditLog, User
@@ -20,6 +20,15 @@ SENSITIVE_REQUEST_FIELDS = {
     "secret",
     "token",
     "refresh_token",
+}
+
+SYSTEM_AUDIT_RESOURCE_TYPES = {
+    "audit_log",
+    "auth",
+    "user",
+    "role",
+    "permission",
+    "menu",
 }
 
 
@@ -119,6 +128,27 @@ class AuditLogService:
                 detail="审计日志不存在。",
             )
         return self._to_response(audit_log)
+
+    async def purge_business_logs(self, current_user: User, request: Request) -> int:
+        """清理业务审计日志，但保留系统安全审计记录。"""
+        delete_statement = delete(AuditLog).where(
+            AuditLog.resource_type.not_in(SYSTEM_AUDIT_RESOURCE_TYPES)
+        )
+        purge_result = self.session.execute(delete_statement)
+        purged_count = int(purge_result.rowcount or 0)
+        self.record_action(
+            actor=current_user,
+            context=self.build_context(
+                request=request,
+                current_user=current_user,
+                action="audit_log.purge",
+                resource_type="audit_log",
+                payload={"purged_count": purged_count},
+                response_status=status.HTTP_202_ACCEPTED,
+            ),
+        )
+        self.session.commit()
+        return purged_count
 
     @staticmethod
     def build_context(

@@ -58,3 +58,13 @@ export async function updateBotStatus(botId: number, isActive: boolean) {
   );
   return response.data;
 }
+
+/**
+ * 触发通知机器人连通性测试。
+ */
+export async function testBot(botId: number) {
+  const response = await http.post<NotificationBotResponse>(
+    `/notification-bots/${botId}/test`
+  );
+  return response.data;
+}

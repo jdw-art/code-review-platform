@@ -30,12 +30,13 @@ vi.mock("../../lib/api/http", () => ({
   },
 }));
 
+let lastUsersParams: Record<string, unknown> | undefined;
+let lastRolesParams: Record<string, unknown> | undefined;
+
 function renderWithQuery(ui: ReactElement) {
   const queryClient = createQueryClient();
 
-  return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
-  );
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 }
 
 beforeEach(() => {
@@ -44,120 +45,176 @@ beforeEach(() => {
   mockHttpPut.mockReset();
   mockHttpPatch.mockReset();
   mockHttpDelete.mockReset();
+  lastUsersParams = undefined;
+  lastRolesParams = undefined;
 });
 
-test("根据后端契约渲染用户列表表头", async () => {
-  mockHttpGet
-    .mockResolvedValueOnce({ data: [] })
-    .mockResolvedValueOnce({ data: [] });
+test("按原型渲染 RBAC 用户管理卡片和激活用户统计", async () => {
+  mockHttpGet.mockImplementation(async (url: string, config?: { params?: Record<string, unknown> }) => {
+    if (url === "/users") {
+      lastUsersParams = config?.params;
+      return {
+        data: {
+          items: [
+            {
+              id: 1,
+              username: "admin",
+              nickname: "管理员",
+              email: "admin@example.com",
+              phone: "13800000000",
+              is_active: true,
+              is_superuser: true,
+              must_change_password: false,
+              roles: [{ id: 1, name: "超级管理员", code: "SUPER_ADMIN" }],
+            },
+          ],
+          total: 1,
+          page: 1,
+          page_size: 5,
+          total_pages: 1,
+        },
+      };
+    }
+
+    lastRolesParams = config?.params;
+    return {
+      data: {
+        items: [{ id: 1, name: "超级管理员", code: "SUPER_ADMIN", description: "系统角色" }],
+        total: 1,
+        page: 1,
+        page_size: 100,
+        total_pages: 1,
+      },
+    };
+  });
 
   renderWithQuery(<UserListPage />);
 
-  expect(await screen.findByText("用户名")).toBeInTheDocument();
-  expect(screen.getByText("邮箱")).toBeInTheDocument();
-  expect(screen.getByText("角色")).toBeInTheDocument();
-  expect(screen.getByText("超级管理员")).toBeInTheDocument();
+  expect(await screen.findByText("RBAC 角色权限与路由控制模块")).toBeInTheDocument();
+  expect(lastUsersParams).toEqual({ page: 1, page_size: 5 });
+  expect(lastRolesParams).toEqual({ page: 1, page_size: 100 });
+  expect(screen.getByText("用户管理")).toBeInTheDocument();
+  expect(screen.getByText((content) => content.startsWith("Active Users"))).toBeInTheDocument();
+  expect(screen.getByText("用户名")).toBeInTheDocument();
 });
 
-test("点击新建用户后可以打开表单并提交创建请求", async () => {
+test("点击状态按钮后会调用用户启停接口", async () => {
   mockHttpGet
-    .mockResolvedValueOnce({ data: [] })
     .mockResolvedValueOnce({
-      data: [
-        {
-          id: 2,
-          name: "Reviewer",
-          code: "reviewer",
-          description: "代码审查员",
-          is_system: false,
-          permissions: [],
-          menus: [],
-        },
-      ],
+      data: {
+        items: [
+          {
+            id: 9,
+            username: "reviewer",
+            nickname: "审查员",
+            email: "reviewer@example.com",
+            phone: null,
+            is_active: true,
+            is_superuser: false,
+            must_change_password: false,
+            roles: [],
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 5,
+        total_pages: 1,
+      },
     })
-    .mockResolvedValue({ data: [] });
-  mockHttpPost.mockResolvedValueOnce({
+    .mockResolvedValueOnce({
+      data: {
+        items: [],
+        total: 0,
+        page: 1,
+        page_size: 100,
+        total_pages: 0,
+      },
+    })
+    .mockResolvedValue({
+      data: {
+        items: [],
+        total: 0,
+        page: 1,
+        page_size: 5,
+        total_pages: 0,
+      },
+    });
+  mockHttpPatch.mockResolvedValueOnce({
     data: {
-      id: 10,
-      username: "alice",
-      nickname: "Alice",
-      email: "alice@example.com",
-      phone: "15500000001",
-      is_active: true,
+      id: 9,
+      username: "reviewer",
+      nickname: "审查员",
+      email: "reviewer@example.com",
+      phone: null,
+      is_active: false,
       is_superuser: false,
       must_change_password: false,
-      roles: [{ id: 2, name: "Reviewer", code: "reviewer" }],
+      roles: [],
     },
   });
 
   renderWithQuery(<UserListPage />);
 
-  fireEvent.click(await screen.findByRole("button", { name: "新建用户" }));
-
-  expect(await screen.findByText("创建用户")).toBeInTheDocument();
-
-  fireEvent.change(screen.getByLabelText("用户名"), {
-    target: { value: "alice" },
-  });
-  fireEvent.change(screen.getByLabelText("初始密码"), {
-    target: { value: "alice123456" },
-  });
-  fireEvent.change(screen.getByLabelText("昵称"), {
-    target: { value: "Alice" },
-  });
-  fireEvent.change(screen.getByLabelText("邮箱"), {
-    target: { value: "alice@example.com" },
-  });
-  fireEvent.change(screen.getByLabelText("手机号"), {
-    target: { value: "15500000001" },
-  });
-  fireEvent.click(screen.getByLabelText("角色 Reviewer"));
-  fireEvent.click(screen.getByRole("button", { name: "保存用户" }));
+  fireEvent.click(await screen.findByRole("button", { name: "ACTIVE" }));
 
   await waitFor(() => {
-    expect(mockHttpPost).toHaveBeenCalledWith("/users", {
-      username: "alice",
-      password: "alice123456",
-      nickname: "Alice",
-      email: "alice@example.com",
-      phone: "15500000001",
-      is_superuser: false,
-      role_ids: [2],
+    expect(mockHttpPatch).toHaveBeenCalledWith("/users/9/status", {
+      is_active: false,
     });
   });
 });
 
-test("编辑用户后会更新资料并覆盖角色分配", async () => {
+test("编辑用户时按原型弹窗展示并保存资料与角色分配", async () => {
   mockHttpGet
     .mockResolvedValueOnce({
-      data: [
-        {
-          id: 1,
-          username: "bob",
-          nickname: "Bob",
-          email: "bob@example.com",
-          phone: "15500000002",
-          is_active: true,
-          is_superuser: false,
-          must_change_password: false,
-          roles: [],
-        },
-      ],
+      data: {
+        items: [
+          {
+            id: 1,
+            username: "bob",
+            nickname: "Bob",
+            email: "bob@example.com",
+            phone: "15500000002",
+            is_active: true,
+            is_superuser: false,
+            must_change_password: false,
+            roles: [],
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 5,
+        total_pages: 1,
+      },
     })
     .mockResolvedValueOnce({
-      data: [
-        {
-          id: 3,
-          name: "Maintainer",
-          code: "maintainer",
-          description: "维护者",
-          is_system: false,
-          permissions: [],
-          menus: [],
-        },
-      ],
+      data: {
+        items: [
+          {
+            id: 3,
+            name: "Maintainer",
+            code: "MAINTAINER",
+            description: "维护者",
+            is_system: false,
+            permissions: [],
+            menus: [],
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 100,
+        total_pages: 1,
+      },
     })
-    .mockResolvedValue({ data: [] });
+    .mockResolvedValue({
+      data: {
+        items: [],
+        total: 0,
+        page: 1,
+        page_size: 5,
+        total_pages: 0,
+      },
+    });
   mockHttpPatch.mockResolvedValueOnce({
     data: {
       id: 1,
@@ -166,7 +223,7 @@ test("编辑用户后会更新资料并覆盖角色分配", async () => {
       email: "bobby@example.com",
       phone: "15500000002",
       is_active: true,
-      is_superuser: false,
+      is_superuser: true,
       must_change_password: false,
       roles: [],
     },
@@ -179,17 +236,19 @@ test("编辑用户后会更新资料并覆盖角色分配", async () => {
       email: "bobby@example.com",
       phone: "15500000002",
       is_active: true,
-      is_superuser: false,
+      is_superuser: true,
       must_change_password: false,
-      roles: [{ id: 3, name: "Maintainer", code: "maintainer" }],
+      roles: [{ id: 3, name: "Maintainer", code: "MAINTAINER" }],
     },
   });
 
   renderWithQuery(<UserListPage />);
 
-  fireEvent.click((await screen.findAllByRole("button", { name: "编辑" }))[0]);
+  fireEvent.click(await screen.findByRole("button", { name: "编辑" }));
 
-  expect(await screen.findByText("编辑用户")).toBeInTheDocument();
+  expect(await screen.findByText("编辑用户角色与信息")).toBeInTheDocument();
+  expect(screen.getByText("用户名 (username)")).toBeInTheDocument();
+  expect(screen.getByText("角色分配")).toBeInTheDocument();
 
   fireEvent.change(screen.getByLabelText("昵称"), {
     target: { value: "Bobby" },
@@ -197,15 +256,16 @@ test("编辑用户后会更新资料并覆盖角色分配", async () => {
   fireEvent.change(screen.getByLabelText("邮箱"), {
     target: { value: "bobby@example.com" },
   });
+  fireEvent.click(screen.getByLabelText("设为超级管理员 (is_superuser)"));
   fireEvent.click(screen.getByLabelText("角色 Maintainer"));
-  fireEvent.click(screen.getByRole("button", { name: "保存用户" }));
+  fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
 
   await waitFor(() => {
     expect(mockHttpPatch).toHaveBeenCalledWith("/users/1", {
       nickname: "Bobby",
       email: "bobby@example.com",
       phone: "15500000002",
-      is_superuser: false,
+      is_superuser: true,
     });
     expect(mockHttpPut).toHaveBeenCalledWith("/users/1/roles", {
       role_ids: [3],
@@ -213,37 +273,110 @@ test("编辑用户后会更新资料并覆盖角色分配", async () => {
   });
 });
 
-test("点击删除用户后会调用删除接口", async () => {
-  const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+test("切换用户管理分页参数后会透传给后端接口", async () => {
+  mockHttpGet.mockImplementation(async (url: string, config?: { params?: Record<string, unknown> }) => {
+    if (url === "/users") {
+      lastUsersParams = config?.params;
+      const page = (config?.params?.page as number | undefined) ?? 1;
+      const pageSize = (config?.params?.page_size as number | undefined) ?? 5;
 
-  mockHttpGet
-    .mockResolvedValueOnce({
-      data: [
-        {
-          id: 8,
-          username: "carol",
-          nickname: "Carol",
-          email: "carol@example.com",
-          phone: "15500000003",
-          is_active: true,
-          is_superuser: false,
-          must_change_password: false,
-          roles: [],
+      return {
+        data: {
+          items: [
+            {
+              id: page,
+              username: `user-${page}`,
+              nickname: `用户-${page}`,
+              email: `user-${page}@example.com`,
+              phone: null,
+              is_active: true,
+              is_superuser: false,
+              must_change_password: false,
+              roles: [],
+            },
+          ],
+          total: 12,
+          page,
+          page_size: pageSize,
+          total_pages: Math.ceil(12 / pageSize),
         },
-      ],
-    })
-    .mockResolvedValueOnce({ data: [] })
-    .mockResolvedValue({ data: [] });
-  mockHttpDelete.mockResolvedValueOnce({ data: null });
+      };
+    }
+
+    lastRolesParams = config?.params;
+    return {
+      data: {
+        items: [],
+        total: 0,
+        page: 1,
+        page_size: 100,
+        total_pages: 0,
+      },
+    };
+  });
 
   renderWithQuery(<UserListPage />);
 
-  fireEvent.click((await screen.findAllByRole("button", { name: "删除" }))[0]);
+  expect(await screen.findByText("user-1")).toBeInTheDocument();
 
-  await waitFor(() => {
-    expect(confirmSpy).toHaveBeenCalledWith("确认删除用户 carol 吗？");
-    expect(mockHttpDelete).toHaveBeenCalledWith("/users/8");
+  fireEvent.change(screen.getByDisplayValue("5 条"), {
+    target: { value: "10" },
   });
 
-  confirmSpy.mockRestore();
+  await waitFor(() => {
+    expect(lastUsersParams).toEqual({ page: 1, page_size: 10 });
+  });
+});
+
+test("点击用户管理下一页时会透传当前页码", async () => {
+  mockHttpGet.mockImplementation(async (url: string, config?: { params?: Record<string, unknown> }) => {
+    if (url === "/users") {
+      lastUsersParams = config?.params;
+      const page = (config?.params?.page as number | undefined) ?? 1;
+      const pageSize = (config?.params?.page_size as number | undefined) ?? 5;
+
+      return {
+        data: {
+          items: [
+            {
+              id: page,
+              username: `user-${page}`,
+              nickname: `用户-${page}`,
+              email: `user-${page}@example.com`,
+              phone: null,
+              is_active: true,
+              is_superuser: false,
+              must_change_password: false,
+              roles: [],
+            },
+          ],
+          total: 12,
+          page,
+          page_size: pageSize,
+          total_pages: Math.ceil(12 / pageSize),
+        },
+      };
+    }
+
+    lastRolesParams = config?.params;
+    return {
+      data: {
+        items: [],
+        total: 0,
+        page: 1,
+        page_size: 100,
+        total_pages: 0,
+      },
+    };
+  });
+
+  renderWithQuery(<UserListPage />);
+
+  expect(await screen.findByText("user-1")).toBeInTheDocument();
+
+  fireEvent.click(await screen.findByRole("button", { name: "下一页" }));
+
+  await waitFor(() => {
+    expect(lastUsersParams).toEqual({ page: 2, page_size: 5 });
+  });
 });

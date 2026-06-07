@@ -191,10 +191,13 @@ def test_access_context_exposes_phase2_permissions_and_menus(
         "project:create",
         "project:update",
         "project:status",
+        "project:delete",
+        "project:trigger-review",
         "project_template:read",
         "project_template:create",
         "project_template:update",
         "project_template:status",
+        "project_template:delete",
         "llm_model:read",
         "llm_model:create",
         "llm_model:update",
@@ -208,6 +211,7 @@ def test_access_context_exposes_phase2_permissions_and_menus(
         "review_record:import",
         "member_analytics:read",
         "audit_log:read",
+        "audit_log:purge",
     }.issubset(permissions)
     assert {
         "/projects",
